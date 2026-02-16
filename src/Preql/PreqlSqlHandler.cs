@@ -72,6 +72,11 @@ public ref struct PreqlSqlHandler
             // Convert alias to table
             AppendFormatted(alias.AsTable());
         }
+        else if (value is AliasProxy proxy)
+        {
+            // Convert generated proxy to table
+            AppendFormatted(proxy.AsTable());
+        }
         else
         {
             // Default: treat as a parameter for safety
