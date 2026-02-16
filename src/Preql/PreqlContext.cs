@@ -22,10 +22,10 @@ public class PreqlContext : IPreqlContext
     /// <inheritdoc />
     public QueryResult Query<T>(Expression<Func<T, FormattableString>> queryExpression)
     {
-        // This method should never be called at runtime.
-        // It will be intercepted by the source generator at compile-time.
-        throw new NotImplementedException(
-            "This method should be intercepted by the Preql source generator. " +
-            "Ensure the Preql.SourceGenerator is properly referenced in your project.");
+        // Note: In a production implementation with C# 12 Interceptors enabled,
+        // this method would be intercepted at compile-time by the source generator.
+        // This runtime implementation analyzes the expression tree to demonstrate the concept.
+        
+        return ExpressionAnalyzer.Analyze<T>(queryExpression, Dialect);
     }
 }
