@@ -118,12 +118,60 @@ class Program
         Console.WriteLine($"Rendered SQL: {string.Format(sql2.Format, sql2.GetArguments())}");
         Console.WriteLine();
 
+        // NEW: Examples using InterpolatedStringHandler with Proxy Types (ZERO REFLECTION!)
+        Console.WriteLine("=============================");
+        Console.WriteLine("BEST API: InterpolatedStringHandler + Proxy Types");
+        Console.WriteLine("(ZERO RUNTIME REFLECTION - Pure Build-Time!)");
+        Console.WriteLine("=============================\n");
+
+        Console.WriteLine("Example 6: Using SqlTableAlias with Handler");
+        var u = context.Alias<User>();
+        int userId = 123;
+        
+        // This uses the PreqlSqlHandler automatically!
+        PreqlSqlHandler handler = $"SELECT {u["Id"]}, {u["Name"]}, {u["Email"]} FROM {u} WHERE {u["Id"]} = {userId.AsValue()}";
+        var (handlerSql, handlerParams) = handler.Build();
+        
+        Console.WriteLine($"SQL: {handlerSql}");
+        Console.WriteLine($"Parameters: {FormatParamList(handlerParams)}");
+        Console.WriteLine();
+
+        Console.WriteLine("Example 7: Complex Query with Handler");
+        string searchName = "%Smith%";
+        int minAge = 30;
+        
+        PreqlSqlHandler handler2 = $"""
+            SELECT {u["Id"]}, {u["Name"]}, {u["Email"]}, {u["Age"]}
+            FROM {u}
+            WHERE {u["Name"]} LIKE {searchName.AsValue()}
+            AND {u["Age"]} >= {minAge.AsValue()}
+            ORDER BY {u["Name"]}
+            """;
+        var (complexSql, complexParams) = handler2.Build();
+        
+        Console.WriteLine($"SQL: {complexSql}");
+        Console.WriteLine($"Parameters: {FormatParamList(complexParams)}");
+        Console.WriteLine();
+
+        Console.WriteLine("Example 8: Building FormattableString for EF Core");
+        PreqlSqlHandler handler3 = $"SELECT {u["Id"]}, {u["Name"]} FROM {u} WHERE {u["Id"]} = {userId.AsValue()}";
+        var efCoreCompatible = handler3.BuildFormattable();
+        
+        Console.WriteLine($"FormattableString Format: {efCoreCompatible.Format}");
+        Console.WriteLine($"Arguments: {FormatFormattableStringArgs(efCoreCompatible)}");
+        Console.WriteLine($"Can be used with: context.Users.FromInterpolatedSql(...)");
+        Console.WriteLine();
+
         Console.WriteLine("✅ All examples completed successfully!");
-        Console.WriteLine("\n📝 Note: The ToSql() method returns a FormattableString that can be used directly");
-        Console.WriteLine("with EF Core's FromInterpolatedSql() method:");
-        Console.WriteLine("  var users = context.Users.FromInterpolatedSql(db.ToSql<User>(...));");
-        Console.WriteLine("\nThe SQL is generated at BUILD TIME (no runtime reflection) when the source");
-        Console.WriteLine("generator is fully enabled. Currently using runtime fallback for demonstration.");
+        Console.WriteLine("\n📝 Note: The InterpolatedStringHandler approach (Examples 6-8) is the BEST option:");
+        Console.WriteLine("  • ZERO runtime reflection");
+        Console.WriteLine("  • ZERO runtime overhead");  
+        Console.WriteLine("  • All work done by the C# compiler at build time");
+        Console.WriteLine("  • Type-safe column and table references");
+        Console.WriteLine("  • Compatible with EF Core via BuildFormattable()");
+        Console.WriteLine("\nUsage with EF Core:");
+        Console.WriteLine("  PreqlSqlHandler h = $\"SELECT {u[\"Id\"]} FROM {u} WHERE {u[\"Id\"]} = {id.AsValue()}\";");
+        Console.WriteLine("  var users = context.Users.FromInterpolatedSql(h.BuildFormattable());");
     }
 
     static string FormatParameters(object? parameters)
@@ -150,5 +198,13 @@ class Program
             return "none";
 
         return string.Join(", ", args.Select((arg, i) => $"[{i}]={arg}"));
+    }
+
+    static string FormatParamList(IReadOnlyList<object?> parameters)
+    {
+        if (parameters == null || parameters.Count == 0)
+            return "none";
+
+        return string.Join(", ", parameters.Select((p, i) => $"@p{i}={p}"));
     }
 }
