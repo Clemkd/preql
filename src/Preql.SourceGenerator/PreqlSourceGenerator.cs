@@ -183,6 +183,10 @@ namespace Preql.SourceGenerator
                     if (IsTableReference(expression, parameterName))
                     {
                         // Table reference: {u} -> [Users] or "Users" depending on dialect
+                        // TODO: Implement more sophisticated pluralization (e.g., Person -> People)
+                        // TODO: Support custom table name attributes
+                        // NOTE: Currently uses SQL Server bracket syntax; in production this would
+                        // be determined from compile-time analysis of the dialect
                         var tableName = info.EntityTypeName.Split('.').Last();
                         if (tableName.EndsWith(">"))
                         {

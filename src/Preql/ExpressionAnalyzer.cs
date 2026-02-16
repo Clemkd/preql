@@ -48,6 +48,8 @@ internal static class ExpressionAnalyzer
             if (IsParameterReference(expr, parameter))
             {
                 // Table reference: {u} -> [Users]
+                // TODO: Implement more sophisticated pluralization (e.g., Person -> People)
+                // TODO: Support custom table name attributes
                 var tableName = typeof(T).Name + "s"; // Simple pluralization
                 sql = sql.Replace(placeholder, FormatIdentifier(tableName, dialect));
             }
