@@ -4,27 +4,34 @@ using System.Runtime.CompilerServices;
 namespace Preql;
 
 /// <summary>
-/// Extension methods for Preql that generate FormattableString at build time.
-/// These methods are intercepted by the source generator to produce SQL without runtime reflection.
+/// Extension methods for Preql that generate FormattableString.
+/// NOTE: These methods use runtime expression analysis and are provided for compatibility.
+/// For zero-reflection SQL generation, use PreqlSqlHandler with InterpolatedStringHandler instead.
 /// </summary>
 public static class PreqlExtensions
 {
     /// <summary>
     /// Converts a typed query expression to a FormattableString containing SQL.
-    /// This method is intercepted at build time by the Preql source generator.
-    /// The result is compatible with EF Core's FromInterpolatedSql.
+    /// OBSOLETE: This method uses runtime expression analysis.
+    /// Use PreqlSqlHandler with InterpolatedStringHandler for zero-reflection approach.
     /// </summary>
     /// <typeparam name="T">The entity type being queried.</typeparam>
     /// <param name="context">The Preql context.</param>
     /// <param name="queryExpression">A lambda expression containing an interpolated string with the query.</param>
     /// <returns>A FormattableString containing the SQL query with parameters.</returns>
     /// <example>
+    /// OBSOLETE APPROACH:
     /// <code>
-    /// var sql = db.ToSql&lt;User&gt;((u) => $"SELECT {u.Id}, {u.Name} FROM {u} WHERE {u.Id} = {id}");
-    /// // Can be used with EF Core:
-    /// // context.Users.FromInterpolatedSql(sql);
+    /// var sql = db.ToSql&lt;User&gt;((u) => $"SELECT {u.Id}, {u.Name} FROM {u}");
+    /// </code>
+    /// RECOMMENDED APPROACH (Zero Reflection):
+    /// <code>
+    /// var u = db.Alias&lt;User&gt;();
+    /// PreqlSqlHandler h = $"SELECT {u["Id"]}, {u["Name"]} FROM {u} WHERE {u["Id"]} = {id.AsValue()}";
+    /// var sql = h.BuildFormattable();
     /// </code>
     /// </example>
+    [Obsolete("Use PreqlSqlHandler with InterpolatedStringHandler for zero-reflection SQL generation. See docs/InterpolatedStringHandler.md")]
     public static FormattableString ToSql<T>(this IPreqlContext context, Expression<Func<T, FormattableString>> queryExpression)
     {
         // This method should be intercepted by the source generator at build time.

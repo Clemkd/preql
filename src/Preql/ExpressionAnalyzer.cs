@@ -4,7 +4,10 @@ namespace Preql;
 
 /// <summary>
 /// Analyzes query expression trees to generate SQL.
+/// OBSOLETE: This class uses runtime expression analysis.
+/// Use PreqlSqlHandler with InterpolatedStringHandler instead for zero-reflection SQL generation.
 /// </summary>
+[Obsolete("Use PreqlSqlHandler with InterpolatedStringHandler for zero-reflection SQL generation. See docs/InterpolatedStringHandler.md")]
 internal static class ExpressionAnalyzer
 {
     public static QueryResult Analyze<T>(Expression<Func<T, FormattableString>> queryExpression, SqlDialect dialect)

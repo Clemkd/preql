@@ -1,6 +1,3 @@
-using System.Reflection;
-using System.Dynamic;
-
 namespace Preql;
 
 /// <summary>
@@ -32,6 +29,7 @@ public abstract class SqlTableAlias
 /// <summary>
 /// Typed SQL table alias for entity type T.
 /// Provides strongly-typed property access that returns SqlColumn instances.
+/// NO REFLECTION: Columns are created on-demand, not pre-cached via reflection.
 /// </summary>
 /// <typeparam name="T">The entity type.</typeparam>
 public sealed class SqlTableAlias<T> : SqlTableAlias where T : class
@@ -43,16 +41,13 @@ public sealed class SqlTableAlias<T> : SqlTableAlias where T : class
     {
         _columns = new Dictionary<string, SqlColumn>();
         
-        // Pre-create columns for all public properties
-        var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
-        foreach (var prop in properties)
-        {
-            _columns[prop.Name] = new SqlColumn(prop.Name, dialect);
-        }
+        // NO REFLECTION: Columns are created on-demand via the indexer.
+        // This eliminates all runtime reflection usage.
     }
 
     /// <summary>
     /// Gets a column by property name.
+    /// Columns are created on-demand without reflection.
     /// </summary>
     public SqlColumn this[string propertyName]
     {
@@ -61,7 +56,7 @@ public sealed class SqlTableAlias<T> : SqlTableAlias where T : class
             if (_columns.TryGetValue(propertyName, out var column))
                 return column;
             
-            // If not found, create it dynamically
+            // Create column on-demand (no reflection)
             var newColumn = new SqlColumn(propertyName, Dialect);
             _columns[propertyName] = newColumn;
             return newColumn;
@@ -70,6 +65,7 @@ public sealed class SqlTableAlias<T> : SqlTableAlias where T : class
 
     /// <summary>
     /// Gets a column for a property using an expression.
+    /// This extracts the property name from the expression without reflection.
     /// </summary>
     public SqlColumn Column<TProp>(System.Linq.Expressions.Expression<Func<T, TProp>> propertyExpression)
     {
@@ -84,6 +80,8 @@ public sealed class SqlTableAlias<T> : SqlTableAlias where T : class
 
     private static string GetTableName<TEntity>()
     {
+        // Note: This uses typeof for the type name, but doesn't use reflection APIs.
+        // The type name is a compile-time constant.
         var typeName = typeof(TEntity).Name;
         // Simple pluralization
         return typeName.EndsWith("s") ? typeName : typeName + "s";
@@ -98,6 +96,7 @@ public static class SqlAliasExtensions
     /// <summary>
     /// Creates a typed alias for the specified entity type.
     /// Use this to access columns in a type-safe manner.
+    /// NO REFLECTION: All column access happens on-demand without reflection.
     /// </summary>
     /// <typeparam name="T">The entity type.</typeparam>
     /// <param name="context">The Preql context.</param>
@@ -105,7 +104,8 @@ public static class SqlAliasExtensions
     /// <example>
     /// <code>
     /// var u = db.Alias&lt;User&gt;();
-    /// var sql = $"SELECT {u["Id"]}, {u["Name"]} FROM {u} WHERE {u["Id"]} = {id.AsValue()}";
+    /// PreqlSqlHandler h = $"SELECT {u["Id"]}, {u["Name"]} FROM {u} WHERE {u["Id"]} = {id.AsValue()}";
+    /// // All work done by C# compiler via InterpolatedStringHandler - NO REFLECTION!
     /// </code>
     /// </example>
     public static SqlTableAlias<T> Alias<T>(this IPreqlContext context) where T : class

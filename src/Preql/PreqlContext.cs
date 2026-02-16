@@ -20,11 +20,17 @@ public class PreqlContext : IPreqlContext
     }
 
     /// <inheritdoc />
+    [Obsolete("This method uses runtime expression analysis. Use PreqlSqlHandler with InterpolatedStringHandler instead for zero-reflection SQL generation. Example: PreqlSqlHandler h = $\"SELECT {u[\"Id\"]} FROM {u}\"; See docs/InterpolatedStringHandler.md")]
     public QueryResult Query<T>(Expression<Func<T, FormattableString>> queryExpression)
     {
-        // Note: In a production implementation with C# 12 Interceptors enabled,
-        // this method would be intercepted at compile-time by the source generator.
-        // This runtime implementation analyzes the expression tree to demonstrate the concept.
+        // OBSOLETE: This method uses runtime expression tree analysis.
+        // For zero-reflection SQL generation, use PreqlSqlHandler instead:
+        //
+        //   var u = context.Alias<User>();
+        //   PreqlSqlHandler h = $"SELECT {u["Id"]} FROM {u} WHERE {u["Id"]} = {id.AsValue()}";
+        //   var (sql, params) = h.Build();
+        //
+        // The InterpolatedStringHandler approach eliminates all runtime overhead.
         
         return ExpressionAnalyzer.Analyze<T>(queryExpression, Dialect);
     }
