@@ -10,7 +10,7 @@ public readonly struct SqlColumn
     private readonly SqlDialect _dialect;
     private readonly string? _tableAlias;
 
-    internal SqlColumn(string name, SqlDialect dialect, string? tableAlias = null)
+    public SqlColumn(string name, SqlDialect dialect, string? tableAlias = null)
     {
         _name = name;
         _dialect = dialect;
@@ -45,7 +45,7 @@ public readonly struct SqlTable
     private readonly SqlDialect _dialect;
     private readonly string? _alias;
 
-    internal SqlTable(string name, SqlDialect dialect, string? alias = null)
+    public SqlTable(string name, SqlDialect dialect, string? alias = null)
     {
         _name = name;
         _dialect = dialect;
