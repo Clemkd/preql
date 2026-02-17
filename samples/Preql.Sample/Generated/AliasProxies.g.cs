@@ -1,5 +1,5 @@
-// This file demonstrates what a source generator would automatically create.
-// In production, the source generator would create this file at build time.
+// NOTE: This is a manually-created demonstration file.
+// In production, the source generator would automatically create this file at build time.
 
 using Preql;
 

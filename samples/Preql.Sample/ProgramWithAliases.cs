@@ -47,10 +47,10 @@ public static class AliasExamples
         Console.WriteLine($"SQL: {sql2}");
         Console.WriteLine($"Parameters: {FormatParams(params2)}");
         Console.WriteLine($"✓ This matches exactly what was requested in the problem statement!");
-        Console.WriteLine($"✓ {userProxy.Name} → u.\"Name\"");
-        Console.WriteLine($"✓ {postProxy.Message} → p.\"Message\"");
-        Console.WriteLine($"✓ {{userProxy}} → \"Users\" u");
-        Console.WriteLine($"✓ {{postProxy}} → \"Posts\" p\n");
+        Console.WriteLine($"✓ {{u.Name}} in code → u.\"Name\" in SQL");
+        Console.WriteLine($"✓ {{p.Message}} in code → p.\"Message\" in SQL");
+        Console.WriteLine($"✓ {{u}} in FROM clause → \"Users\" u in SQL");
+        Console.WriteLine($"✓ {{p}} in JOIN clause → \"Posts\" p in SQL\n");
 
         // Example 3: Two-table query with WHERE clause and parameters
         Console.WriteLine("Example 3: Two-Table Query with WHERE and Parameters");

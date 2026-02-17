@@ -315,7 +315,7 @@ internal static class EntityProxyFactory
             getIL.Emit(System.Reflection.Emit.OpCodes.Ldfld, aliasField);
             
             var sqlColumnCtor = typeof(SqlColumn).GetConstructor(
-                BindingFlags.NonPublic | BindingFlags.Instance,
+                BindingFlags.Public | BindingFlags.Instance,
                 null,
                 new[] { typeof(string), typeof(SqlDialect), typeof(string) },
                 null);
@@ -345,7 +345,7 @@ internal static class EntityProxyFactory
         toStringIL.Emit(System.Reflection.Emit.OpCodes.Ldfld, aliasField);
         
         var sqlTableCtor = typeof(SqlTable).GetConstructor(
-            BindingFlags.NonPublic | BindingFlags.Instance,
+            BindingFlags.Public | BindingFlags.Instance,
             null,
             new[] { typeof(string), typeof(SqlDialect), typeof(string) },
             null);
