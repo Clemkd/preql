@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/samples/">
+    <Project Path="samples/Preql.Sample/Preql.Sample.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Preql.SourceGenerator/Preql.SourceGenerator.csproj" />
+    <Project Path="src/Preql/Preql.csproj" />
+  </Folder>
+</Solution>
