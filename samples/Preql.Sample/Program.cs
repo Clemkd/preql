@@ -1,4 +1,5 @@
 using Preql;
+using Preql.Sample.Generated;
 
 namespace Preql.Sample;
 
@@ -15,113 +16,99 @@ class Program
 {
     static void Main(string[] args)
     {
-        Console.WriteLine("��️ Preql Sample Application");
+        Console.WriteLine("🛡️ Preql Sample Application");
         Console.WriteLine("=============================\n");
 
         // Create a PreqlContext with PostgreSQL dialect
         var context = new PreqlContext(SqlDialect.PostgreSql);
 
-        // Example 1: Using SqlTableAlias with Handler (Indexer approach)
-        Console.WriteLine("Example 1: Using SqlTableAlias with Handler");
-        var u = context.Alias<User>();
+        // Example 1: Simple Query with Lambda - Using Generated Proxy
+        Console.WriteLine("Example 1: Simple Query with Lambda");
         int userId = 123;
         
-        // This uses the PreqlSqlHandler automatically!
-        PreqlSqlHandler handler = $"SELECT {u["Id"]}, {u["Name"]}, {u["Email"]} FROM {u} WHERE {u["Id"]} = {userId.AsValue()}";
-        var (handlerSql, handlerParams) = handler.Build();
+        // The source generator would transform this at compile time:
+        // context.Query<User>((u) => ...) 
+        // Into code using the generated UserProxy
+        var userProxy = new UserProxy(context.Dialect);
+        PreqlSqlHandler h1 = $"SELECT {userProxy.Id}, {userProxy.Name}, {userProxy.Email} FROM {userProxy} WHERE {userProxy.Id} = {userId}";
+        var (sql1, params1) = h1.Build();
         
-        Console.WriteLine($"SQL: {handlerSql}");
-        Console.WriteLine($"Parameters: {FormatParamList(handlerParams)}");
+        Console.WriteLine($"SQL: {sql1}");
+        Console.WriteLine($"Parameters: {FormatParamList(params1)}");
         Console.WriteLine();
 
-        // Example 2: Complex Query with Handler
-        Console.WriteLine("Example 2: Complex Query with Handler");
+        // Example 2: Complex Query with Multiple Conditions
+        Console.WriteLine("Example 2: Complex Query with Multiple Conditions");
         string searchName = "%Smith%";
         int minAge = 30;
         
-        PreqlSqlHandler handler2 = $"""
-            SELECT {u["Id"]}, {u["Name"]}, {u["Email"]}, {u["Age"]}
-            FROM {u}
-            WHERE {u["Name"]} LIKE {searchName.AsValue()}
-            AND {u["Age"]} >= {minAge.AsValue()}
-            ORDER BY {u["Name"]}
+        var u2 = new UserProxy(context.Dialect);
+        PreqlSqlHandler h2 = $"""
+            SELECT {u2.Id}, {u2.Name}, {u2.Email}, {u2.Age}
+            FROM {u2}
+            WHERE {u2.Name} LIKE {searchName}
+            AND {u2.Age} >= {minAge}
+            ORDER BY {u2.Name}
             """;
-        var (complexSql, complexParams) = handler2.Build();
+        var (sql2, params2) = h2.Build();
         
-        Console.WriteLine($"SQL: {complexSql}");
-        Console.WriteLine($"Parameters: {FormatParamList(complexParams)}");
+        Console.WriteLine($"SQL: {sql2}");
+        Console.WriteLine($"Parameters: {FormatParamList(params2)}");
         Console.WriteLine();
 
-        // Example 3: Building FormattableString for EF Core
-        Console.WriteLine("Example 3: Building FormattableString for EF Core");
-        PreqlSqlHandler handler3 = $"SELECT {u["Id"]}, {u["Name"]} FROM {u} WHERE {u["Id"]} = {userId.AsValue()}";
-        var efCoreCompatible = handler3.BuildFormattable();
+        // Example 3: Select All
+        Console.WriteLine("Example 3: Select All");
         
-        Console.WriteLine($"FormattableString Format: {efCoreCompatible.Format}");
-        Console.WriteLine($"Arguments: {FormatFormattableStringArgs(efCoreCompatible)}");
-        Console.WriteLine($"Can be used with: context.Users.FromInterpolatedSql(...)");
+        var u3 = new UserProxy(context.Dialect);
+        PreqlSqlHandler h3 = $"SELECT {u3.Id}, {u3.Name}, {u3.Email}, {u3.Age} FROM {u3}";
+        var (sql3, params3) = h3.Build();
+        
+        Console.WriteLine($"SQL: {sql3}");
+        Console.WriteLine($"Parameters: {FormatParamList(params3)}");
         Console.WriteLine();
 
-        // Example 4: Using GENERATED AliasProxy (Typed properties)
-        Console.WriteLine("=============================");
-        Console.WriteLine("Example 4: Using Generated AliasProxy");
-        Console.WriteLine("(Typed Properties - Full IntelliSense!)");
-        Console.WriteLine("=============================\n");
-
-        var userProxy = new Preql.Sample.Generated.UserAliasProxy(context.Dialect);
-        int searchId = 999;
+        // Example 4: Query with Aggregation
+        Console.WriteLine("Example 4: Query with Aggregation");
         
-        PreqlSqlHandler handler4 = $"SELECT {userProxy.Id}, {userProxy.Name}, {userProxy.Email} FROM {userProxy} WHERE {userProxy.Id} = {searchId.AsValue()}";
-        var (proxySql, proxyParams) = handler4.Build();
-        
-        Console.WriteLine($"SQL: {proxySql}");
-        Console.WriteLine($"Parameters: {FormatParamList(proxyParams)}");
-        Console.WriteLine();
-        Console.WriteLine("✨ Notice: Properties like 'userProxy.Id' instead of u[\"Id\"]!");
-        Console.WriteLine("✨ This provides full IntelliSense and compile-time safety!");
-        Console.WriteLine("✨ Generated by source generator - NO runtime reflection!");
-        Console.WriteLine();
-
-        // Example 5: Multiple Conditions
-        Console.WriteLine("Example 5: Multiple Conditions");
-        var user = context.Alias<User>();
-        
-        PreqlSqlHandler handler5 = $"""
-            SELECT {user["Id"]}, {user["Name"]}, {user["Email"]}, {user["Age"]}
-            FROM {user}
-            WHERE {user["Age"]} >= {25.AsValue()}
-            AND {user["Email"]} LIKE {"%.com".AsValue()}
-            ORDER BY {user["Age"]} DESC
+        var u4 = new UserProxy(context.Dialect);
+        PreqlSqlHandler h4 = $"""
+            SELECT {u4.Id}, {u4.Name}, COUNT(*) as Count
+            FROM {u4}
+            WHERE {u4.Age} >= {25}
+            GROUP BY {u4.Id}, {u4.Name}
+            HAVING COUNT(*) > {5}
             """;
-        var (multiSql, multiParams) = handler5.Build();
+        var (sql4, params4) = h4.Build();
         
-        Console.WriteLine($"SQL: {multiSql}");
-        Console.WriteLine($"Parameters: {FormatParamList(multiParams)}");
+        Console.WriteLine($"SQL: {sql4}");
+        Console.WriteLine($"Parameters: {FormatParamList(params4)}");
         Console.WriteLine();
+
+        // Example 5: Update Statement
+        Console.WriteLine("Example 5: Update Statement");
+        string newEmail = "newemail@example.com";
+        int targetUserId = 42;
+        
+        var u5 = new UserProxy(context.Dialect);
+        PreqlSqlHandler h5 = $"UPDATE {u5} SET {u5.Email} = {newEmail} WHERE {u5.Id} = {targetUserId}";
+        var (sql5, params5) = h5.Build();
+        
+        Console.WriteLine($"SQL: {sql5}");
+        Console.WriteLine($"Parameters: {FormatParamList(params5)}");
+        Console.WriteLine();
+
 
         Console.WriteLine("✅ All examples completed successfully!");
-        Console.WriteLine("\n📝 Preql - Zero Reflection SQL Generation:");
-        Console.WriteLine("  • ZERO runtime reflection");
-        Console.WriteLine("  • ZERO runtime overhead");  
-        Console.WriteLine("  • All work done by the C# compiler at build time");
-        Console.WriteLine("  • Type-safe column and table references");
-        Console.WriteLine("  • Compatible with EF Core via BuildFormattable()");
-        Console.WriteLine("\n🎯 Usage:");
-        Console.WriteLine("  var u = context.Alias<User>();");
-        Console.WriteLine("  PreqlSqlHandler h = $\"SELECT {u[\"Id\"]} FROM {u} WHERE {u[\"Id\"]} = {id.AsValue()}\";");
-        Console.WriteLine("  var (sql, params) = h.Build();");
-        Console.WriteLine("\n💡 Or with generated proxy:");
-        Console.WriteLine("  var u = new UserAliasProxy(dialect);");
-        Console.WriteLine("  PreqlSqlHandler h = $\"SELECT {u.Id} FROM {u} WHERE {u.Id} = {id.AsValue()}\";");
-    }
-
-    static string FormatFormattableStringArgs(FormattableString fs)
-    {
-        var args = fs.GetArguments();
-        if (args.Length == 0)
-            return "none";
-
-        return string.Join(", ", args.Select((arg, i) => $"[{i}]={arg}"));
+        Console.WriteLine("\n📝 Key Features:");
+        Console.WriteLine("  • Lambda expression API: context.Query<User>((u) => $\"...\")");
+        Console.WriteLine("  • No need to call .AsValue() - values automatically parameterized");
+        Console.WriteLine("  • Type-safe property access (u.Id, u.Name, etc.)");
+        Console.WriteLine("  • Generated proxies provide compile-time safety");
+        Console.WriteLine("  • Works with any SQL statement");
+        Console.WriteLine("\n🎯 Usage (what source generator creates):");
+        Console.WriteLine("  var u = new UserProxy(dialect);");
+        Console.WriteLine("  PreqlSqlHandler h = $\"SELECT {u.Id}, {u.Name} FROM {u} WHERE {u.Id} = {userId}\";");
+        Console.WriteLine("  var (sql, parameters) = h.Build();");
     }
 
     static string FormatParamList(IReadOnlyList<object?> parameters)

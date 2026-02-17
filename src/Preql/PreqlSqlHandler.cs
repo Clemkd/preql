@@ -50,8 +50,8 @@ public ref struct PreqlSqlHandler
     }
 
     /// <summary>
-    /// Appends a formatted value (non-SqlValue types are treated as literals for safety).
-    /// Consider using .AsValue() extension method to mark values as parameters.
+    /// Appends a formatted value.
+    /// Automatically determines if the value is a SQL element (column/table) or a parameter value.
     /// </summary>
     public void AppendFormatted<T>(T value)
     {
@@ -79,6 +79,26 @@ public ref struct PreqlSqlHandler
         }
         else
         {
+            // Check if the value can be implicitly converted to SqlTable
+            // This handles generated proxies like UserProxy that have implicit conversion operators
+            var valueType = value?.GetType();
+            if (valueType != null)
+            {
+                var toSqlTableMethod = valueType.GetMethod(
+                    "op_Implicit",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static,
+                    null,
+                    new[] { valueType },
+                    null);
+                
+                if (toSqlTableMethod != null && toSqlTableMethod.ReturnType == typeof(SqlTable))
+                {
+                    var sqlTable = (SqlTable)toSqlTableMethod.Invoke(null, new object?[] { value })!;
+                    AppendFormatted(sqlTable);
+                    return;
+                }
+            }
+            
             // Default: treat as a parameter for safety
             AppendFormatted(new SqlValue(value));
         }
