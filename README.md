@@ -12,7 +12,7 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
         var query = db.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
 
-        // 2. At runtime, Preql analyzes the expression tree to generate:
+        // 2. Preql generates (at compile time via source generator, or at runtime as fallback):
         // query.Sql -> "SELECT u.\"Id\", u.\"Name\", u.\"Email\" FROM \"Users\" u WHERE u.\"Id\" = @p0"
         // query.Parameters -> [@p0=42]
         
@@ -107,29 +107,6 @@ public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
 - Table references include aliases: `{u}` → `"Users" u`
 - Supports 2-5 tables in a single query
 - Works with JOINs, subqueries, and complex SQL
-
-### Complex Queries
-
-```csharp
-public async Task<IEnumerable<User>> SearchUsers(string searchTerm, int minAge)
-{
-    var query = db.Query<User>((u) => 
-        $"""
-        SELECT {u.Id}, {u.Name}, {u.Email} 
-        FROM {u} 
-        WHERE {u.Name} LIKE {searchTerm} 
-        AND {u.Age} >= {minAge}
-        ORDER BY {u.Name}
-        """);
-    
-    // Generated SQL (with table aliases): 
-    // SELECT u."Id", u."Name", u."Email" FROM "Users" u 
-    // WHERE u."Name" LIKE @p0 AND u."Age" >= @p1 ORDER BY u."Name"
-    // Parameters: { p0: "%John%", p1: 18 }
-    
-    return await conn.QueryAsync<User>(query.Sql, query.Parameters);
-}
-```
 
 ### SQL Dialect Support
 
