@@ -1,6 +1,6 @@
 # 🛡️ Preql
 
-[![CI](https://github.com/Clemkd/preql/actions/workflows/ci.yml/badge.svg)](https://github.com/Clemkd/preql/actions/workflows/ci.yml)
+[![CI](https://github.com/Clemkd/preql/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clemkd/preql/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Clemkd/preql/branch/main/graph/badge.svg)](https://codecov.io/gh/Clemkd/preql)
 
 **Preql** (pronounced *Prequel*) is a high-performance C# library that transmutes typed interpolated strings into raw SQL.
