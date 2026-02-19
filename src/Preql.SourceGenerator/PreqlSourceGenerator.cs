@@ -119,7 +119,8 @@ namespace Preql.SourceGenerator
                 FilePath:         filePath,
                 Line:             line,
                 Character:        character,
-                UniqueId:         uniqueId);
+                UniqueId:         uniqueId,
+                ColumnNames:      ResolveColumnNames(interp, GetParamNames(lambda), model));
         }
 
         private static InterpolatedStringExpressionSyntax ExtractInterpolatedString(
@@ -189,8 +190,11 @@ namespace Preql.SourceGenerator
                     {
                         // {u.Name}  →  column ref
                         FlushLiteral();
+                        var propertyName = ma.Name.Identifier.Text;
+                        var key = $"{maObj.Identifier.Text}.{propertyName}";
+                        var columnName = info.ColumnNames.TryGetValue(key, out var cn) ? cn : propertyName;
                         parts.Add(new SqlFragment(SqlFragmentKind.Column,
-                            ma.Name.Identifier.Text, maObj.Identifier.Text));
+                            columnName, maObj.Identifier.Text));
                     }
                     else
                     {
@@ -320,6 +324,45 @@ namespace Preql.SourceGenerator
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Walks the interpolated string holes and resolves the SQL column name for each
+        /// "param.Property" reference.  Uses the [Column("...")] attribute when present;
+        /// falls back to the property name (case-sensitive).
+        /// </summary>
+        private static IReadOnlyDictionary<string, string> ResolveColumnNames(
+            InterpolatedStringExpressionSyntax interp,
+            List<string> paramNames,
+            SemanticModel model)
+        {
+            var map = new Dictionary<string, string>();
+            foreach (var content in interp.Contents)
+            {
+                if (!(content is InterpolationSyntax hole)) continue;
+                if (!(hole.Expression is MemberAccessExpressionSyntax ma)) continue;
+                if (!(ma.Expression is IdentifierNameSyntax maObj)) continue;
+                if (!paramNames.Contains(maObj.Identifier.Text)) continue;
+
+                var key = $"{maObj.Identifier.Text}.{ma.Name.Identifier.Text}";
+                if (map.ContainsKey(key)) continue;
+
+                var symbolInfo = model.GetSymbolInfo(ma);
+                if (symbolInfo.Symbol is IPropertySymbol prop)
+                {
+                    var colAttr = prop.GetAttributes()
+                        .FirstOrDefault(a => a.AttributeClass?.Name == "ColumnAttribute");
+                    var colName = colAttr != null && !colAttr.ConstructorArguments.IsEmpty
+                        ? colAttr.ConstructorArguments[0].Value as string
+                        : null;
+                    map[key] = colName ?? ma.Name.Identifier.Text;
+                }
+                else
+                {
+                    map[key] = ma.Name.Identifier.Text;
+                }
+            }
+            return map;
+        }
+
         private static string DeriveTableName(string fullyQualifiedTypeName)
         {
             var name = fullyQualifiedTypeName.Split('.').Last();
@@ -378,13 +421,19 @@ namespace Preql.SourceGenerator
         public int    Line      { get; }
         public int    Character { get; }
         public string UniqueId  { get; }
+        /// <summary>
+        /// Maps "paramAlias.PropertyName" → resolved SQL column name (from [Column] attribute
+        /// or the property name as fallback).
+        /// </summary>
+        public IReadOnlyDictionary<string, string> ColumnNames { get; }
 
         public QueryInvocationInfo(
             List<string>                       EntityTypeNames,
             List<string>                       LambdaParamNames,
             InterpolatedStringExpressionSyntax InterpolatedString,
             string ReceiverTypeName,
-            string FilePath, int Line, int Character, string UniqueId)
+            string FilePath, int Line, int Character, string UniqueId,
+            IReadOnlyDictionary<string, string> ColumnNames)
         {
             this.EntityTypeNames    = EntityTypeNames;
             this.LambdaParamNames   = LambdaParamNames;
@@ -394,6 +443,7 @@ namespace Preql.SourceGenerator
             this.Line      = Line;
             this.Character = Character;
             this.UniqueId  = UniqueId;
+            this.ColumnNames = ColumnNames;
         }
     }
 }
