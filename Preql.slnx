@@ -6,4 +6,7 @@
     <Project Path="src/Preql.SourceGenerator/Preql.SourceGenerator.csproj" />
     <Project Path="src/Preql/Preql.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Preql.Tests/Preql.Tests.csproj" />
+  </Folder>
 </Solution>
