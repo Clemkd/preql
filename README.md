@@ -13,15 +13,15 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
 
         // 2. At runtime, Preql analyzes the expression tree to generate:
-        // query.Sql -> "SELECT \"Id\", \"Name\", \"Email\" FROM \"Users\" WHERE \"Id\" = @p0"
-        // query.Parameters -> { p0: 42 }
+        // query.Sql -> "SELECT u.\"Id\", u.\"Name\", u.\"Email\" FROM \"Users\" u WHERE u.\"Id\" = @p0"
+        // query.Parameters -> [@p0=42]
         
         return await conn.QuerySingleAsync<User>(query.Sql, query.Parameters);
     }
 }
 ```
 
-By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries.
+By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries with automatic table aliases.
 
 ## ✨ Key Features
 
@@ -66,13 +66,47 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
         var query = db.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
         
-        // Generated SQL: SELECT "Id", "Name", "Email" FROM "Users" WHERE "Id" = @p0
-        // Parameters: { p0: 42 }
+        // Generated SQL: SELECT u."Id", u."Name", u."Email" FROM "Users" u WHERE u."Id" = @p0
+        // Parameters: [@p0=42]
         
         return await conn.QuerySingleAsync<User>(query.Sql, query.Parameters);
     }
 }
 ```
+
+### Multi-Table Queries with Aliases
+
+Preql supports multi-table queries with automatic table aliases:
+
+```csharp
+public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
+{
+    // Multi-table query with automatic aliases
+    var query = db.Query<User, Post>((u, p) => 
+        $"""
+        SELECT {u.Id}, {u.Name}, {p.Message}
+        FROM {u}
+        JOIN {p} ON {u.Id} = {p.UserId}
+        WHERE {u.Name} LIKE {searchTerm}
+        """);
+    
+    // Generated SQL (PostgreSQL): 
+    // SELECT u."Id", u."Name", p."Message"
+    // FROM "Users" u
+    // JOIN "Posts" p ON u."Id" = p."UserId"
+    // WHERE u."Name" LIKE @p0
+    
+    // Parameters: { p0: "%John%" }
+    
+    return await conn.QueryAsync<UserPost>(query.Sql, query.Parameters);
+}
+```
+
+**Key Features:**
+- Column references automatically include table aliases: `{u.Name}` → `u."Name"`
+- Table references include aliases: `{u}` → `"Users" u`
+- Supports 2-5 tables in a single query
+- Works with JOINs, subqueries, and complex SQL
 
 ### Complex Queries
 
@@ -88,8 +122,9 @@ public async Task<IEnumerable<User>> SearchUsers(string searchTerm, int minAge)
         ORDER BY {u.Name}
         """);
     
-    // Generated SQL: SELECT "Id", "Name", "Email" FROM "Users" 
-    //                WHERE "Name" LIKE @p0 AND "Age" >= @p1 ORDER BY "Name"
+    // Generated SQL (with table aliases): 
+    // SELECT u."Id", u."Name", u."Email" FROM "Users" u 
+    // WHERE u."Name" LIKE @p0 AND u."Age" >= @p1 ORDER BY u."Name"
     // Parameters: { p0: "%John%", p1: 18 }
     
     return await conn.QueryAsync<User>(query.Sql, query.Parameters);
@@ -101,37 +136,79 @@ public async Task<IEnumerable<User>> SearchUsers(string searchTerm, int minAge)
 ```csharp
 // PostgreSQL: Uses double quotes for identifiers
 var pgContext = new PreqlContext(SqlDialect.PostgreSql);
-// Generated: SELECT "Name" FROM "Users"
+var q = pgContext.Query<User, Post>((u, p) => $"SELECT {u.Name} FROM {u} JOIN {p}...");
+// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
 
-// SQL Server: Uses square brackets for identifiers  
+// SQL Server: Uses square brackets for identifiers
 var sqlContext = new PreqlContext(SqlDialect.SqlServer);
-// Generated: SELECT [Name] FROM [Users]
+// Generated: SELECT u.[Name] FROM [Users] u JOIN [Posts] p ...
 
 // MySQL: Uses backticks for identifiers
 var mysqlContext = new PreqlContext(SqlDialect.MySql);
-// Generated: SELECT `Name` FROM `Users`
+// Generated: SELECT u.`Name` FROM `Users` u JOIN `Posts` p ...
 
 // SQLite: Uses double quotes for identifiers
 var sqliteContext = new PreqlContext(SqlDialect.Sqlite);
-// Generated: SELECT "Name" FROM "Users"
+// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
 ```
 
 ## 🏗️ How It Works
 
-1. **Write your query** using a lambda expression with interpolated strings
-2. **Preql analyzes** the expression tree to identify:
-   - Table references (parameter itself: `{u}`)
-   - Column references (member access: `{u.Name}`)
-   - Parameter values (variables: `{id}`)
-3. **SQL is generated** with proper identifier quoting and parameter placeholders
-4. **Parameters are extracted** into a dictionary for safe execution
+### Runtime fallback (always available)
+Preql analyzes the lambda expression tree at runtime on each call to identify table references, column references, and parameter values.
+
+### Compile-time generation (recommended — zero analysis overhead)
+When the `Preql.SourceGenerator` is referenced as an analyzer in your project, Preql intercepts every `context.Query<…>(lambda)` call **at compile time** using C# source generators + interceptors:
+
+1. **At compile time** — the source generator parses the interpolated-string lambda from the syntax tree, classifies each `{…}` hole as a table reference, column reference, or runtime parameter, and emits an interceptor method in `Preql.Generated` containing the SQL structure as pre-built string-concat operations.
+
+2. **At runtime** — only two cheap things happen:
+   - Dialect-specific quoting is applied to pre-known identifiers (simple `string.Concat`).
+   - Only the parameter-value expressions (e.g. `{userId}`) are compiled/evaluated — no expression-tree walking of the SQL structure.
+
+```
+Developer writes:
+  context.Query<User, Post>((u, p) =>
+      $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}")
+
+Source generator emits (PreqlInterceptor_XXXX.g.cs):
+  [InterceptsLocation("ProgramWithAliases.cs", 33, 27)]
+  public static QueryResult QueryXXXX<T1, T2>(this IPreqlContext context, ...)
+  {
+      var __d = context.Dialect;
+      var __sql = string.Concat(
+          "SELECT ",
+          SqlIdentifierHelper.Col(__d, "u", "Name"),   // ← compile-time knowledge
+          ", ",
+          SqlIdentifierHelper.Col(__d, "p", "Message"),
+          " FROM ",
+          SqlIdentifierHelper.Table(__d, "Users", "u"),
+          " JOIN ",
+          SqlIdentifierHelper.Table(__d, "Posts", "p"),
+          ...
+      );
+      return new QueryResult(__sql, Array.Empty<object?>());
+  }
+```
+
+### Table Alias Generation
+
+When you write:
+```csharp
+db.Query<User, Post>((u, p) => $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p}...")
+```
+
+Preql automatically generates:
+- `{u.Name}` → `u."Name"` (column with table alias)
+- `{p.Message}` → `p."Message"` (column with table alias)
+- `{u}` in FROM → `"Users" u` (table with alias)
+- `{p}` in JOIN → `"Posts" p` (table with alias)
 
 ## 🔮 Future Enhancements
 
-The current implementation uses runtime expression tree analysis. A future version could leverage C# 12 Source Generators and Interceptors to perform this analysis at compile-time, eliminating all runtime overhead and providing:
-- Zero runtime cost - SQL generation happens at build time
-- Static SQL strings directly in your binary
-- Compile-time validation of queries
+- **Custom table names via attributes**: Support `[Table("custom_name")]` attribute to override the automatic pluralization.
+- **Stable interceptor form**: Migrate from the file-path `[InterceptsLocation(string, int, int)]` form (experimental) to the stable `InterceptableLocation`-based form once it is broadly available in NuGet releases of the Roslyn SDK.
+- **Caching for parameter extractors**: Cache compiled parameter-extraction delegates per call-site to eliminate repeated `Expression.Compile()` overhead.
 
 ## 📦 Installation
 

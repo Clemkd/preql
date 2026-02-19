@@ -8,16 +8,18 @@ public readonly struct SqlColumn
 {
     private readonly string _name;
     private readonly SqlDialect _dialect;
+    private readonly string? _tableAlias;
 
-    internal SqlColumn(string name, SqlDialect dialect)
+    public SqlColumn(string name, SqlDialect dialect, string? tableAlias = null)
     {
         _name = name;
         _dialect = dialect;
+        _tableAlias = tableAlias;
     }
 
     public override string ToString()
     {
-        return _dialect switch
+        var quotedName = _dialect switch
         {
             SqlDialect.PostgreSql => $"\"{_name}\"",
             SqlDialect.SqlServer => $"[{_name}]",
@@ -25,6 +27,11 @@ public readonly struct SqlColumn
             SqlDialect.Sqlite => $"\"{_name}\"",
             _ => $"[{_name}]"
         };
+
+        // If table alias is provided, prefix the column with it
+        return string.IsNullOrEmpty(_tableAlias) 
+            ? quotedName 
+            : $"{_tableAlias}.{quotedName}";
     }
 }
 
@@ -36,16 +43,18 @@ public readonly struct SqlTable
 {
     private readonly string _name;
     private readonly SqlDialect _dialect;
+    private readonly string? _alias;
 
-    internal SqlTable(string name, SqlDialect dialect)
+    public SqlTable(string name, SqlDialect dialect, string? alias = null)
     {
         _name = name;
         _dialect = dialect;
+        _alias = alias;
     }
 
     public override string ToString()
     {
-        return _dialect switch
+        var quotedName = _dialect switch
         {
             SqlDialect.PostgreSql => $"\"{_name}\"",
             SqlDialect.SqlServer => $"[{_name}]",
@@ -53,6 +62,11 @@ public readonly struct SqlTable
             SqlDialect.Sqlite => $"\"{_name}\"",
             _ => $"[{_name}]"
         };
+
+        // If alias is provided, append it after the table name
+        return string.IsNullOrEmpty(_alias) 
+            ? quotedName 
+            : $"{quotedName} {_alias}";
     }
 }
 

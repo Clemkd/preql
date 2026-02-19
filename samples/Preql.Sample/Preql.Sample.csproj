@@ -2,6 +2,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Preql\Preql.csproj" />
+    <ProjectReference Include="..\..\src\Preql.SourceGenerator\Preql.SourceGenerator.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -13,6 +15,8 @@
     <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Preql.Generated</InterceptorsPreviewNamespaces>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
+    <!-- CS9270: file-path InterceptsLocation form is experimental but functional -->
+    <NoWarn>$(NoWarn);CS9270</NoWarn>
   </PropertyGroup>
 
 </Project>
