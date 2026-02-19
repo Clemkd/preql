@@ -184,8 +184,7 @@ internal static class QueryExpressionAnalyzer
             memberExpr.Expression is ParameterExpression memberParam &&
             paramMap.TryGetValue(memberParam, out var colTableInfo))
         {
-            var columnName = GetColumnName(memberExpr.Member);
-            sqlBuilder.Append(FormatColumnRef(columnName, colTableInfo.Alias, dialect));
+            sqlBuilder.Append(FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect));
             return;
         }
 
