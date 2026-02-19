@@ -113,6 +113,7 @@ namespace Preql.SourceGenerator
 
             return new QueryInvocationInfo(
                 EntityTypeNames:  method.TypeArguments.Select(t => t.ToDisplayString()).ToList(),
+                TableNames:       method.TypeArguments.Select(t => DeriveTableName(t)).ToList(),
                 LambdaParamNames: GetParamNames(lambda),
                 InterpolatedString: interp,
                 ReceiverTypeName: receiverTypeName,
@@ -148,10 +149,10 @@ namespace Preql.SourceGenerator
         private static SqlAnalysis AnalyzeInterpolatedString(QueryInvocationInfo info)
         {
             var paramNames     = info.LambdaParamNames;
-            var entityTypes    = info.EntityTypeNames;
+            var tableNames     = info.TableNames;
             var paramToTable   = new Dictionary<string, string>();
-            for (int i = 0; i < paramNames.Count && i < entityTypes.Count; i++)
-                paramToTable[paramNames[i]] = DeriveTableName(entityTypes[i]);
+            for (int i = 0; i < paramNames.Count && i < tableNames.Count; i++)
+                paramToTable[paramNames[i]] = tableNames[i];
 
             var parts            = new List<SqlFragment>();
             var runtimeArgIdxs   = new List<int>(); // which interpolation-arg positions are SQL params
@@ -320,15 +321,26 @@ namespace Preql.SourceGenerator
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
-        private static string DeriveTableName(string fullyQualifiedTypeName)
+        private static string DeriveTableName(ITypeSymbol typeSymbol)
         {
-            var name = fullyQualifiedTypeName.Split('.').Last();
+            // Check for [Table("...")] attribute first
+            foreach (var attr in typeSymbol.GetAttributes())
+            {
+                var attrClass = attr.AttributeClass;
+                if (attrClass == null) continue;
+                var attrName = attrClass.ToDisplayString();
+                if (attrName == "Preql.TableAttribute" || attrName == "TableAttribute")
+                {
+                    if (attr.ConstructorArguments.Length > 0 &&
+                        attr.ConstructorArguments[0].Value is string tableName &&
+                        !string.IsNullOrEmpty(tableName))
+                        return tableName;
+                }
+            }
+            // Fall back to the type name (case-sensitive), without pluralization
+            var name = typeSymbol.Name;
             if (name.Contains('<')) name = name.Substring(0, name.IndexOf('<'));
-            // Simple English pluralization: append "s" when the name doesn't already end with "s".
-            // Known limitation: irregular plurals (City→Cities, Person→People, Status→Status)
-            // and words ending in non-noun "s" are not handled. Use a [Table("...")] attribute
-            // (future enhancement) to specify custom table names when the default is wrong.
-            return (name.EndsWith("s") || name.EndsWith("S")) ? name : name + "s";
+            return name;
         }
 
         private static string EscapeVerbatim(string s) => s.Replace("\"", "\"\"");
@@ -371,6 +383,7 @@ namespace Preql.SourceGenerator
     internal readonly struct QueryInvocationInfo
     {
         public List<string>                       EntityTypeNames    { get; }
+        public List<string>                       TableNames         { get; }
         public List<string>                       LambdaParamNames   { get; }
         public InterpolatedStringExpressionSyntax InterpolatedString { get; }
         public string ReceiverTypeName { get; }
@@ -381,12 +394,14 @@ namespace Preql.SourceGenerator
 
         public QueryInvocationInfo(
             List<string>                       EntityTypeNames,
+            List<string>                       TableNames,
             List<string>                       LambdaParamNames,
             InterpolatedStringExpressionSyntax InterpolatedString,
             string ReceiverTypeName,
             string FilePath, int Line, int Character, string UniqueId)
         {
             this.EntityTypeNames    = EntityTypeNames;
+            this.TableNames         = TableNames;
             this.LambdaParamNames   = LambdaParamNames;
             this.InterpolatedString = InterpolatedString;
             this.ReceiverTypeName   = ReceiverTypeName;
