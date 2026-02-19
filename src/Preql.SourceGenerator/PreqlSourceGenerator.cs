@@ -4,6 +4,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 
 namespace Preql.SourceGenerator
 {
@@ -31,8 +32,8 @@ namespace Preql.SourceGenerator
     {
         public void Initialize(IncrementalGeneratorInitializationContext context)
         {
-            // Emit the InterceptsLocationAttribute shim once — the file-path form of
-            // interceptors is still experimental in .NET 10 and the attribute is not in the BCL.
+            // Emit the InterceptsLocationAttribute shim once — the stable InterceptableLocation
+            // form uses (int version, string data) and is not in the BCL.
             context.RegisterPostInitializationOutput(static ctx =>
                 ctx.AddSource("PreqlInterceptorShim.g.cs",
                     """
@@ -42,7 +43,7 @@ namespace Preql.SourceGenerator
                         [global::System.AttributeUsage(global::System.AttributeTargets.Method, AllowMultiple = true)]
                         internal sealed class InterceptsLocationAttribute : global::System.Attribute
                         {
-                            public InterceptsLocationAttribute(string filePath, int line, int character) { }
+                            public InterceptsLocationAttribute(int version, string data) { }
                         }
                     }
                     """));
@@ -50,7 +51,7 @@ namespace Preql.SourceGenerator
             var queryInvocations = context.SyntaxProvider
                 .CreateSyntaxProvider(
                     predicate: static (node, _) => IsQueryInvocation(node),
-                    transform: static (ctx, _) => GetQueryInvocationInfo(ctx))
+                    transform: static (ctx, ct) => GetQueryInvocationInfo(ctx, ct))
                 .Where(static m => m.HasValue);
 
             context.RegisterSourceOutput(queryInvocations, static (spc, info) =>
@@ -72,7 +73,7 @@ namespace Preql.SourceGenerator
 
         // ── Semantic analysis ────────────────────────────────────────────────────
 
-        private static QueryInvocationInfo? GetQueryInvocationInfo(GeneratorSyntaxContext ctx)
+        private static QueryInvocationInfo? GetQueryInvocationInfo(GeneratorSyntaxContext ctx, CancellationToken ct)
         {
             var invocation = (InvocationExpressionSyntax)ctx.Node;
             var model     = ctx.SemanticModel;
@@ -104,12 +105,11 @@ namespace Preql.SourceGenerator
                 ? "global::" + receiverType.ToDisplayString()
                 : "global::Preql.IPreqlContext";
 
-            // Interceptor location: position of the method name token (the "Query" identifier)
-            var nameSpan  = memberAccess.Name.Identifier.GetLocation().GetLineSpan();
-            var filePath  = nameSpan.Path;
-            var line      = nameSpan.StartLinePosition.Line + 1;
-            var character = nameSpan.StartLinePosition.Character + 1;
-            var uniqueId  = $"{filePath}_{line}_{character}".GetHashCode().ToString("X8");
+            // Use the stable InterceptableLocation API to obtain the interceptor location.
+            var location = Microsoft.CodeAnalysis.CSharp.CSharpExtensions.GetInterceptableLocation(model, invocation, ct);
+            if (location == null) return null;
+
+            var uniqueId = location.Data.GetHashCode().ToString("X8");
 
             return new QueryInvocationInfo(
                 EntityTypeNames:  method.TypeArguments.Select(t => t.ToDisplayString()).ToList(),
@@ -117,9 +117,8 @@ namespace Preql.SourceGenerator
                 LambdaParamNames: GetParamNames(lambda),
                 InterpolatedString: interp,
                 ReceiverTypeName: receiverTypeName,
-                FilePath:         filePath,
-                Line:             line,
-                Character:        character,
+                InterceptorVersion: location.Version,
+                InterceptorData:    location.Data,
                 UniqueId:         uniqueId,
                 ColumnNames:      ResolveColumnNames(interp, GetParamNames(lambda), model));
         }
@@ -237,8 +236,8 @@ namespace Preql.SourceGenerator
             sb.AppendLine("{");
 
             // ── [InterceptsLocation] attribute ───────────────────────────────────
-            // Use the file-path form (declared as 'internal' in the shim file)
-            sb.AppendLine($"    [InterceptsLocation(@\"{EscapeVerbatim(info.FilePath)}\", {info.Line}, {info.Character})]");
+            // Use the stable InterceptableLocation form: (int version, string data)
+            sb.AppendLine($"    [InterceptsLocation({info.InterceptorVersion}, \"{EscapeString(info.InterceptorData)}\")]");
 
             // ── Method signature ─────────────────────────────────────────────────
             var typeParams   = string.Join(", ", Enumerable.Range(1, typeCount).Select(i => $"T{i}"));
@@ -429,10 +428,9 @@ namespace Preql.SourceGenerator
         public List<string>                       TableNames         { get; }
         public List<string>                       LambdaParamNames   { get; }
         public InterpolatedStringExpressionSyntax InterpolatedString { get; }
-        public string ReceiverTypeName { get; }
-        public string FilePath  { get; }
-        public int    Line      { get; }
-        public int    Character { get; }
+        public string ReceiverTypeName    { get; }
+        public int    InterceptorVersion  { get; }
+        public string InterceptorData     { get; }
         public string UniqueId  { get; }
         /// <summary>
         /// Maps "paramAlias.PropertyName" → resolved SQL column name (from [Column] attribute
@@ -446,7 +444,7 @@ namespace Preql.SourceGenerator
             List<string>                       LambdaParamNames,
             InterpolatedStringExpressionSyntax InterpolatedString,
             string ReceiverTypeName,
-            string FilePath, int Line, int Character, string UniqueId,
+            int InterceptorVersion, string InterceptorData, string UniqueId,
             IReadOnlyDictionary<string, string> ColumnNames)
         {
             this.EntityTypeNames    = EntityTypeNames;
@@ -454,9 +452,8 @@ namespace Preql.SourceGenerator
             this.LambdaParamNames   = LambdaParamNames;
             this.InterpolatedString = InterpolatedString;
             this.ReceiverTypeName   = ReceiverTypeName;
-            this.FilePath  = FilePath;
-            this.Line      = Line;
-            this.Character = Character;
+            this.InterceptorVersion = InterceptorVersion;
+            this.InterceptorData    = InterceptorData;
             this.UniqueId  = UniqueId;
             this.ColumnNames = ColumnNames;
         }
