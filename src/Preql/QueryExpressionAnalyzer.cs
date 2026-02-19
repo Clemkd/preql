@@ -242,10 +242,16 @@ internal static class QueryExpressionAnalyzer
 
     private static string GetTableName(Type type)
     {
+        var attr = type.GetCustomAttributes(typeof(TableAttribute), inherit: false)
+                       .OfType<TableAttribute>()
+                       .FirstOrDefault();
+        if (attr != null)
+            return attr.Name;
+
         var name = type.Name;
         // Simple pluralization: append "s" unless the name already ends with "s".
         // Note: irregular plurals (e.g. Person→People, Child→Children) are not handled here.
-        // Use a [Table("...")] attribute (future enhancement) to specify custom table names.
+        // Use [Table("...")] to specify an exact table name for these cases.
         return name.EndsWith("s", StringComparison.OrdinalIgnoreCase) ? name : name + "s";
     }
 

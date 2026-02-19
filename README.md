@@ -31,6 +31,7 @@ By analyzing C# expression trees, Preql can intelligently distinguish between ta
 * 🧩 **Agnostic**: Preql only generates SQL. Use it seamlessly with Dapper, ADO.NET, or EF Core.
 * 🛡️ **Built-in Security**: Automatically converts C# variables into SQL parameters to prevent injection.
 * 📦 **Zero Dependencies**: The core library has minimal dependencies for maximum compatibility.
+* 🏷️ **Custom Naming**: Override table and column names with `[Table]` and `[Column]` attributes.
 
 ## 🚀 Setup
 
@@ -129,6 +130,45 @@ var sqliteContext = new PreqlContext(SqlDialect.Sqlite);
 // Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
 ```
 
+### Attribute Customization
+
+#### Custom Table Names
+
+Apply `[Table("...")]` to map an entity to a specific database table name instead of relying on automatic pluralization:
+
+```csharp
+[Table("tbl_posts")]
+public class Post
+{
+    public int Id { get; set; }
+    public string Message { get; set; }
+    public int UserId { get; set; }
+}
+
+// {p} now resolves to "tbl_posts" p instead of "Posts" p
+var query = db.Query<User, Post>((u, p) =>
+    $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
+// Generated (PostgreSQL): SELECT u."Name", p."Message" FROM "Users" u JOIN "tbl_posts" p ON u."Id" = p."UserId"
+```
+
+#### Custom Column Names
+
+Apply `[Column("...")]` to a property to use a specific SQL column name instead of the property name:
+
+```csharp
+public class User
+{
+    [Column("user_id")]
+    public int Id { get; set; }
+
+    [Column("full_name")]
+    public string Name { get; set; }
+}
+
+var query = db.Query<User>((u) => $"SELECT {u.Id}, {u.Name} FROM {u}");
+// Generated (PostgreSQL): SELECT u."user_id", u."full_name" FROM "Users" u
+```
+
 ## 🏗️ How It Works
 
 ### Runtime fallback (always available)
@@ -183,7 +223,6 @@ Preql automatically generates:
 
 ## 🔮 Future Enhancements
 
-- **Custom table names via attributes**: Support `[Table("custom_name")]` attribute to override the automatic pluralization.
 - **Stable interceptor form**: Migrate from the file-path `[InterceptsLocation(string, int, int)]` form (experimental) to the stable `InterceptableLocation`-based form once it is broadly available in NuGet releases of the Roslyn SDK.
 - **Caching for parameter extractors**: Cache compiled parameter-extraction delegates per call-site to eliminate repeated `Expression.Compile()` overhead.
 
