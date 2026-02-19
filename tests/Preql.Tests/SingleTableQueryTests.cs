@@ -178,6 +178,71 @@ public class SingleTableQueryTests
         Assert.Equal(SqlDialect.MySql, preql.Dialect);
     }
 
+    // --- Interpolated property ---
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Interpolated_NoParameters()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Id}, {u.Name} FROM {u}");
+
+        Assert.NotNull(query.Interpolated);
+        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"User\" u", query.Interpolated!.Format);
+        Assert.Empty(query.Interpolated.GetArguments());
+    }
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Interpolated_WithParameter()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Id}, {u.Name} FROM {u} WHERE {u.Id} = {userId}");
+
+        Assert.NotNull(query.Interpolated);
+        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"User\" u WHERE u.\"Id\" = {0}", query.Interpolated!.Format);
+        var args = query.Interpolated.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(42, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Interpolated_WithMultipleParameters()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        string name = "Alice";
+        string email = "alice@example.com";
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Id} FROM {u} WHERE {u.Name} = {name} AND {u.Email} = {email}");
+
+        Assert.NotNull(query.Interpolated);
+        Assert.Equal("SELECT u.\"Id\" FROM \"User\" u WHERE u.\"Name\" = {0} AND u.\"Email\" = {1}", query.Interpolated!.Format);
+        var args = query.Interpolated.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal("alice@example.com", args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_SqlServer_Interpolated_WithParameter()
+    {
+        var preql = new PreqlContext(SqlDialect.SqlServer);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Name} FROM {u} WHERE {u.Id} = {userId}");
+
+        Assert.NotNull(query.Interpolated);
+        Assert.Equal("SELECT u.[Name] FROM [User] u WHERE u.[Id] = {0}", query.Interpolated!.Format);
+        var args = query.Interpolated.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
     // --- QueryResult struct ---
 
     [Fact]
@@ -186,6 +251,7 @@ public class SingleTableQueryTests
         var result = new QueryResult();
         Assert.Null(result.Sql);
         Assert.Null(result.Parameters);
+        Assert.Null(result.Interpolated);
     }
 
     [Fact]

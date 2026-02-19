@@ -117,6 +117,7 @@ internal static class QueryExpressionAnalyzer
             : call.Arguments.Skip(1).ToList();
 
         var sqlBuilder = new StringBuilder();
+        var interpolatedFormatBuilder = new StringBuilder();
         var parameters = new List<object?>();
         int sqlParamIndex = 0;
 
@@ -129,8 +130,10 @@ internal static class QueryExpressionAnalyzer
 
             if (i + 1 < format.Length && format[i + 1] == '{')
             {
-                // Escaped {{ → emit single {
+                // Escaped {{ → emit single { in SQL; keep {{ escaped in interpolated format
                 sqlBuilder.Append(format, lastPos, i - lastPos + 1);
+                AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, i - lastPos);
+                interpolatedFormatBuilder.Append("{{");
                 i++;
                 lastPos = i + 1;
                 continue;
@@ -142,6 +145,7 @@ internal static class QueryExpressionAnalyzer
 
             // Emit literal text before this placeholder
             sqlBuilder.Append(format, lastPos, i - lastPos);
+            AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, i - lastPos);
 
             // Parse the placeholder index (may have format specifiers like {0:d} or alignment {0,-5})
             var placeholder = format.AsSpan(i + 1, endBrace - i - 1);
@@ -151,7 +155,7 @@ internal static class QueryExpressionAnalyzer
             if (int.TryParse(indexSpan, out int argIdx) && argIdx < argExprs.Count)
             {
                 var argExpr = UnwrapConvert(argExprs[argIdx]);
-                ProcessArgument(argExpr, paramMap, dialect, sqlBuilder, parameters, ref sqlParamIndex);
+                ProcessArgument(argExpr, paramMap, dialect, sqlBuilder, interpolatedFormatBuilder, parameters, ref sqlParamIndex);
             }
 
             i = endBrace;
@@ -160,8 +164,13 @@ internal static class QueryExpressionAnalyzer
 
         // Append any trailing literal text
         sqlBuilder.Append(format, lastPos, format.Length - lastPos);
+        AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, format.Length - lastPos);
 
-        return new QueryResult(sqlBuilder.ToString(), parameters);
+        var interpolated = FormattableStringFactory.Create(
+            interpolatedFormatBuilder.ToString(),
+            parameters.ToArray());
+
+        return new QueryResult(sqlBuilder.ToString(), parameters, interpolated);
     }
 
     private static void ProcessArgument(
@@ -169,13 +178,16 @@ internal static class QueryExpressionAnalyzer
         Dictionary<ParameterExpression, ParameterTableInfo> paramMap,
         SqlDialect dialect,
         StringBuilder sqlBuilder,
+        StringBuilder interpolatedFormatBuilder,
         List<object?> parameters,
         ref int sqlParamIndex)
     {
         // Case 1: Direct lambda parameter → table reference  e.g. {u} → "Users" u
         if (argExpr is ParameterExpression paramExpr && paramMap.TryGetValue(paramExpr, out var tableInfo))
         {
-            sqlBuilder.Append(FormatTableRef(tableInfo.TableName, tableInfo.Alias, dialect));
+            var tableRef = FormatTableRef(tableInfo.TableName, tableInfo.Alias, dialect);
+            sqlBuilder.Append(tableRef);
+            AppendEscapedForInterpolation(interpolatedFormatBuilder, tableRef);
             return;
         }
 
@@ -184,15 +196,38 @@ internal static class QueryExpressionAnalyzer
             memberExpr.Expression is ParameterExpression memberParam &&
             paramMap.TryGetValue(memberParam, out var colTableInfo))
         {
-            sqlBuilder.Append(FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect));
+            var colRef = FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect);
+            sqlBuilder.Append(colRef);
+            AppendEscapedForInterpolation(interpolatedFormatBuilder, colRef);
             return;
         }
 
-        // Case 3: Anything else → evaluate and pass as a SQL parameter  e.g. {userId} → @p0
+        // Case 3: Anything else → evaluate and pass as a SQL parameter  e.g. {userId} → @p0 / {0}
         var value = EvaluateExpression(argExpr);
-        sqlBuilder.Append($"@p{sqlParamIndex++}");
+        sqlBuilder.Append($"@p{sqlParamIndex}");
+        interpolatedFormatBuilder.Append($"{{{sqlParamIndex}}}");
+        sqlParamIndex++;
         parameters.Add(value);
     }
+
+    /// <summary>
+    /// Appends a substring to <paramref name="sb"/>, escaping <c>{</c> as <c>{{</c>
+    /// and <c>}</c> as <c>}}</c> so the result is safe to use inside a
+    /// <see cref="FormattableString"/> format string.
+    /// </summary>
+    private static void AppendEscapedForInterpolation(StringBuilder sb, string text, int start, int length)
+    {
+        for (int i = start; i < start + length; i++)
+        {
+            char c = text[i];
+            if (c == '{') sb.Append("{{");
+            else if (c == '}') sb.Append("}}");
+            else sb.Append(c);
+        }
+    }
+
+    private static void AppendEscapedForInterpolation(StringBuilder sb, string text)
+        => AppendEscapedForInterpolation(sb, text, 0, text.Length);
 
     /// <summary>
     /// Returns the SQL column name for a member, using <see cref="ColumnAttribute"/> if present,
