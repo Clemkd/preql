@@ -30,7 +30,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name} FROM {u}");
 
-        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"Users\" u", query.Sql);
+        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"User\" u", query.Sql);
         Assert.Empty(GetParameters(query));
     }
 
@@ -43,7 +43,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name} FROM {u} WHERE {u.Id} = {userId}");
 
-        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"Users\" u WHERE u.\"Id\" = @p0", query.Sql);
+        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"User\" u WHERE u.\"Id\" = @p0", query.Sql);
         var parameters = GetParameters(query);
         Assert.Single(parameters);
         Assert.Equal(42, parameters[0]);
@@ -60,7 +60,7 @@ public class SingleTableQueryTests
             $"SELECT {u.Id} FROM {u} WHERE {u.Name} = {name} AND {u.Email} = {email}");
 
         Assert.Equal(
-            "SELECT u.\"Id\" FROM \"Users\" u WHERE u.\"Name\" = @p0 AND u.\"Email\" = @p1",
+            "SELECT u.\"Id\" FROM \"User\" u WHERE u.\"Name\" = @p0 AND u.\"Email\" = @p1",
             query.Sql);
         var parameters = GetParameters(query);
         Assert.Equal(2, parameters.Count);
@@ -78,7 +78,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name} FROM {u}");
 
-        Assert.Equal("SELECT u.[Id], u.[Name] FROM [Users] u", query.Sql);
+        Assert.Equal("SELECT u.[Id], u.[Name] FROM [User] u", query.Sql);
         Assert.Empty(GetParameters(query));
     }
 
@@ -91,7 +91,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Name} FROM {u} WHERE {u.Id} = {userId}");
 
-        Assert.Equal("SELECT u.[Name] FROM [Users] u WHERE u.[Id] = @p0", query.Sql);
+        Assert.Equal("SELECT u.[Name] FROM [User] u WHERE u.[Id] = @p0", query.Sql);
         var parameters = GetParameters(query);
         Assert.Single(parameters);
         Assert.Equal(7, parameters[0]);
@@ -107,7 +107,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name} FROM {u}");
 
-        Assert.Equal("SELECT u.`Id`, u.`Name` FROM `Users` u", query.Sql);
+        Assert.Equal("SELECT u.`Id`, u.`Name` FROM `User` u", query.Sql);
         Assert.Empty(GetParameters(query));
     }
 
@@ -120,7 +120,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id} FROM {u} WHERE {u.Name} = {name}");
 
-        Assert.Equal("SELECT u.`Id` FROM `Users` u WHERE u.`Name` = @p0", query.Sql);
+        Assert.Equal("SELECT u.`Id` FROM `User` u WHERE u.`Name` = @p0", query.Sql);
         var parameters = GetParameters(query);
         Assert.Single(parameters);
         Assert.Equal("Bob", parameters[0]);
@@ -136,7 +136,7 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name} FROM {u}");
 
-        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"Users\" u", query.Sql);
+        Assert.Equal("SELECT u.\"Id\", u.\"Name\" FROM \"User\" u", query.Sql);
         Assert.Empty(GetParameters(query));
     }
 
@@ -149,23 +149,23 @@ public class SingleTableQueryTests
         var query = preql.Query<User>((u) =>
             $"SELECT {u.Name} FROM {u} WHERE {u.Id} = {userId}");
 
-        Assert.Equal("SELECT u.\"Name\" FROM \"Users\" u WHERE u.\"Id\" = @p0", query.Sql);
+        Assert.Equal("SELECT u.\"Name\" FROM \"User\" u WHERE u.\"Id\" = @p0", query.Sql);
         var parameters = GetParameters(query);
         Assert.Single(parameters);
         Assert.Equal(99, parameters[0]);
     }
 
-    // --- Table name: already ends with 's' ---
+    // --- Table name: entity name used as-is ---
 
     [Fact]
-    public void Query_SingleType_TableNameEndsWithS_NotDoublePluralized()
+    public void Query_SingleType_TableNameUsedAsIs()
     {
         var preql = new PreqlContext(SqlDialect.PostgreSql);
 
         var query = preql.Query<Status>((s) =>
             $"SELECT {s.Id} FROM {s}");
 
-        // "Status" already ends with 's', so table name stays "Status"
+        // "Status" is used as-is, without any pluralization
         Assert.Equal("SELECT s.\"Id\" FROM \"Status\" s", query.Sql);
     }
 
