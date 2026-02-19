@@ -184,7 +184,7 @@ internal static class QueryExpressionAnalyzer
             memberExpr.Expression is ParameterExpression memberParam &&
             paramMap.TryGetValue(memberParam, out var colTableInfo))
         {
-            sqlBuilder.Append(FormatColumnRef(memberExpr.Member.Name, colTableInfo.Alias, dialect));
+            sqlBuilder.Append(FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect));
             return;
         }
 
@@ -192,6 +192,18 @@ internal static class QueryExpressionAnalyzer
         var value = EvaluateExpression(argExpr);
         sqlBuilder.Append($"@p{sqlParamIndex++}");
         parameters.Add(value);
+    }
+
+    /// <summary>
+    /// Returns the SQL column name for a member, using <see cref="ColumnAttribute"/> if present,
+    /// otherwise falling back to the member name (case-sensitive).
+    /// </summary>
+    private static string GetColumnName(System.Reflection.MemberInfo member)
+    {
+        var attr = member.GetCustomAttributes(typeof(ColumnAttribute), inherit: true)
+                         .OfType<ColumnAttribute>()
+                         .FirstOrDefault();
+        return attr?.Name ?? member.Name;
     }
 
     /// <summary>
