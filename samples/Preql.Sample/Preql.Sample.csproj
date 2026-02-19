@@ -11,12 +11,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <LangVersion>preview</LangVersion>
-    <InterceptorsPreviewNamespaces>$(InterceptorsPreviewNamespaces);Preql.Generated</InterceptorsPreviewNamespaces>
+    <InterceptorsNamespaces>$(InterceptorsNamespaces);Preql.Generated</InterceptorsNamespaces>
     <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     <CompilerGeneratedFilesOutputPath>$(BaseIntermediateOutputPath)Generated</CompilerGeneratedFilesOutputPath>
-    <!-- CS9270: file-path InterceptsLocation form is experimental but functional -->
-    <NoWarn>$(NoWarn);CS9270</NoWarn>
   </PropertyGroup>
 
 </Project>

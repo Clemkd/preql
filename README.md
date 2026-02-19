@@ -192,7 +192,7 @@ Developer writes:
       $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}")
 
 Source generator emits (PreqlInterceptor_XXXX.g.cs):
-  [InterceptsLocation("ProgramWithAliases.cs", 33, 27)]
+  [InterceptsLocation(1, "base64encodedlocationdata==")]
   public static QueryResult QueryXXXX<T1, T2>(this IPreqlContext context, ...)
   {
       var __d = context.Dialect;
@@ -226,7 +226,6 @@ Preql automatically generates:
 
 ## 🔮 Future Enhancements
 
-- **Stable interceptor form**: Migrate from the file-path `[InterceptsLocation(string, int, int)]` form (experimental) to the stable `InterceptableLocation`-based form once it is broadly available in NuGet releases of the Roslyn SDK.
 - **Caching for parameter extractors**: Cache compiled parameter-extraction delegates per call-site to eliminate repeated `Expression.Compile()` overhead.
 
 ## 📦 Installation
