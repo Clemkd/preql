@@ -3,24 +3,35 @@ using Preql;
 namespace Preql.Sample;
 
 /// <summary>
-/// Demonstrates the clean lambda API: context.Query&lt;T1, T2&gt;((u, p) =&gt; $"...")
-/// No proxy variables are created by the developer — Preql analyzes the expression tree
-/// to identify table references, column references and parameter values automatically.
+/// Demonstrates Preql's compile-time SQL generation via source generator + interceptors.
+///
+/// <para>
+/// At <b>compile time</b>, the Preql source generator intercepts every
+/// <c>context.Query&lt;…&gt;(lambda)</c> call. It parses the interpolated string from the
+/// lambda's syntax tree, classifies each hole as a table reference, column reference, or
+/// runtime parameter, and emits an interceptor method in <c>Preql.Generated</c> containing
+/// the SQL <i>structure</i> as plain string concatenation. No expression-tree walking is
+/// done at runtime for SQL structure; only dialect quoting (simple string formatting) and
+/// parameter value extraction are deferred to runtime.
+/// </para>
 /// </summary>
 public static class AliasExamples
 {
     public static void Run()
     {
         Console.WriteLine("🛡️ Preql Multi-Table Query Sample");
-        Console.WriteLine("====================================\n");
+        Console.WriteLine("=====================================");
+        Console.WriteLine("SQL structure generated at COMPILE TIME via source generator.");
+        Console.WriteLine("Only dialect quoting and parameter values are resolved at runtime.\n");
 
         var postgres = new PreqlContext(SqlDialect.PostgreSql);
-        var mssql = new PreqlContext(SqlDialect.SqlServer);
-        var mysql = new PreqlContext(SqlDialect.MySql);
+        var mssql    = new PreqlContext(SqlDialect.SqlServer);
+        var mysql    = new PreqlContext(SqlDialect.MySql);
 
         // ── Example 1: single table with alias ──────────────────────────────────
         Console.WriteLine("Example 1: Single-Table Query");
         int userId = 123;
+        // ↓ intercepted at compile time — PreqlInterceptor_XXXX.g.cs runs instead
         var q1 = postgres.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {userId}");
 
@@ -30,6 +41,7 @@ public static class AliasExamples
 
         // ── Example 2: two-table JOIN (the problem-statement scenario) ───────────
         Console.WriteLine("Example 2: Two-Table JOIN Query  ← problem statement scenario");
+        // ↓ intercepted at compile time
         var q2 = postgres.Query<User, Post>((u, p) =>
             $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
 
@@ -41,6 +53,7 @@ public static class AliasExamples
         Console.WriteLine("Example 3: JOIN with WHERE parameters");
         string searchName = "%John%";
         int minAge = 25;
+        // ↓ intercepted at compile time; {searchName} and {minAge} evaluated at runtime
         var q3 = postgres.Query<User, Post>((u, p) =>
             $"""
             SELECT {u.Id}, {u.Name}, {u.Email}, {p.Message}
@@ -80,9 +93,11 @@ public static class AliasExamples
         Console.WriteLine();
 
         Console.WriteLine("✅ All examples completed successfully!");
-        Console.WriteLine("\n🎯 Problem Statement Result:");
-        Console.WriteLine("  Input:  context.Query<User, Post>((u, p) => $\"Select {u.Name}, {p.Message} From {u} Join...\")");
-        Console.WriteLine($"  Output: \"{q2.Sql}\"");
+        Console.WriteLine("\n🎯 Compile-time generation result (problem statement scenario):");
+        Console.WriteLine("  Input  : context.Query<User, Post>((u, p) => $\"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p}...\")");
+        Console.WriteLine($"  Output : {q2.Sql}");
+        Console.WriteLine("\n📂 Generated interceptors are in the project's intermediate output:");
+        Console.WriteLine("  obj/Debug/<tfm>/Generated/Preql.SourceGenerator/Preql.SourceGenerator.PreqlSourceGenerator/");
     }
 
     private static string FormatParams(QueryResult q)
