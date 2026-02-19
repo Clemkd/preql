@@ -247,20 +247,20 @@ namespace Preql.SourceGenerator
                                 .Select(i => $"where T{i} : class"));
             var lambdaParam  = hasParams ? "queryExpression" : "_";
 
-            sb.AppendLine($"    public static global::Preql.QueryResult Query{info.UniqueId}<{typeParams}>(");
+            sb.AppendLine($"    public static global::System.FormattableString Query{info.UniqueId}<{typeParams}>(");
             sb.AppendLine($"        this {info.ReceiverTypeName} context,");
             sb.AppendLine($"        Expression<Func<{funcTypes}>> {lambdaParam})");
             sb.AppendLine($"        {constraints}");
             sb.AppendLine("    {");
 
-            // ── SQL construction ─────────────────────────────────────────────────
+            // ── Format string construction ────────────────────────────────────────
             sb.AppendLine("        var __d = context.Dialect;");
-            sb.AppendLine("        var __sql = string.Concat(");
-            var sqlLines = BuildSqlConcatLines(analysis.Parts);
-            for (int i = 0; i < sqlLines.Count; i++)
+            sb.AppendLine("        var __format = string.Concat(");
+            var formatLines = BuildFormatConcatLines(analysis.Parts);
+            for (int i = 0; i < formatLines.Count; i++)
             {
-                var comma = i < sqlLines.Count - 1 ? "," : "";
-                sb.AppendLine($"            {sqlLines[i]}{comma}");
+                var comma = i < formatLines.Count - 1 ? "," : "";
+                sb.AppendLine($"            {formatLines[i]}{comma}");
             }
             sb.AppendLine("        );");
 
@@ -275,11 +275,11 @@ namespace Preql.SourceGenerator
                 }
                 var paramArray = string.Join(", ", Enumerable.Range(0, analysis.RuntimeArgIndices.Count)
                                     .Select(i => $"__p{i}"));
-                sb.AppendLine($"        return new global::Preql.QueryResult(__sql, new object?[] {{ {paramArray} }});");
+                sb.AppendLine($"        return FormattableStringFactory.Create(__format, {paramArray});");
             }
             else
             {
-                sb.AppendLine("        return new global::Preql.QueryResult(__sql, global::System.Array.Empty<object?>());");
+                sb.AppendLine("        return FormattableStringFactory.Create(__format);");
             }
 
             sb.AppendLine("    }");
@@ -287,16 +287,18 @@ namespace Preql.SourceGenerator
             return sb.ToString();
         }
 
-        private static List<string> BuildSqlConcatLines(List<SqlFragment> parts)
+        private static List<string> BuildFormatConcatLines(List<SqlFragment> parts)
         {
-            // Merge adjacent literals, then emit code expressions for each part
+            // Merge adjacent literals, then emit code expressions for each part.
+            // Literals have { and } escaped to {{ and }} for use in a FormattableString format.
+            // Params use {n} positional placeholders.
             var merged = MergeLiterals(parts);
             return merged.Select(p => p.Kind switch
             {
-                SqlFragmentKind.Literal => $"@\"{EscapeVerbatim(p.Value)}\"",
+                SqlFragmentKind.Literal => $"@\"{EscapeVerbatim(EscapeInterpolationLiteral(p.Value))}\"",
                 SqlFragmentKind.Column  => $"global::Preql.SqlIdentifierHelper.Col(__d, \"{EscapeString(p.TableAlias)}\", \"{EscapeString(p.Value)}\")",
                 SqlFragmentKind.Table   => $"global::Preql.SqlIdentifierHelper.Table(__d, \"{EscapeString(p.Value)}\", \"{EscapeString(p.TableAlias)}\")",
-                SqlFragmentKind.Param   => $"\"@p{p.Value}\"",
+                SqlFragmentKind.Param   => $"\"{{{p.Value}}}\"",
                 _                       => "\"\"",
             }).ToList();
         }
@@ -387,6 +389,7 @@ namespace Preql.SourceGenerator
 
         private static string EscapeVerbatim(string s) => s.Replace("\"", "\"\"");
         private static string EscapeString(string s)   => s.Replace("\\", "\\\\").Replace("\"", "\\\"");
+        private static string EscapeInterpolationLiteral(string s) => s.Replace("{", "{{").Replace("}", "}}");
     }
 
     // ── Data types ────────────────────────────────────────────────────────────────

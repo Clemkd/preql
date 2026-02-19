@@ -35,7 +35,7 @@ public static class AliasExamples
         var q1 = postgres.Query<User>((u) =>
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {userId}");
 
-        Console.WriteLine($"SQL:    {q1.Sql}");
+        Console.WriteLine($"SQL:    {q1.Format}");
         Console.WriteLine($"Params: {FormatParams(q1)}");
         Console.WriteLine();
 
@@ -45,7 +45,7 @@ public static class AliasExamples
         var q2 = postgres.Query<User, Post>((u, p) =>
             $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
 
-        Console.WriteLine($"SQL:    {q2.Sql}");
+        Console.WriteLine($"SQL:    {q2.Format}");
         Console.WriteLine($"Params: {FormatParams(q2)}");
         Console.WriteLine();
 
@@ -64,7 +64,7 @@ public static class AliasExamples
             ORDER BY {u.Name}
             """);
 
-        Console.WriteLine($"SQL:    {q3.Sql}");
+        Console.WriteLine($"SQL:    {q3.Format}");
         Console.WriteLine($"Params: {FormatParams(q3)}");
         Console.WriteLine();
 
@@ -73,7 +73,7 @@ public static class AliasExamples
         var q4 = mssql.Query<User, Post>((u, p) =>
             $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
 
-        Console.WriteLine($"SQL:    {q4.Sql}");
+        Console.WriteLine($"SQL:    {q4.Format}");
         Console.WriteLine();
 
         // ── Example 5: MySQL dialect ─────────────────────────────────────────────
@@ -81,7 +81,7 @@ public static class AliasExamples
         var q5 = mysql.Query<User, Post>((u, p) =>
             $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
 
-        Console.WriteLine($"SQL:    {q5.Sql}");
+        Console.WriteLine($"SQL:    {q5.Format}");
         Console.WriteLine();
 
         // ── Example 6: three-table query ────────────────────────────────────────
@@ -89,21 +89,21 @@ public static class AliasExamples
         var q6 = postgres.Query<User, Post, User>((u, p, author) =>
             $"SELECT {u.Name}, {p.Message}, {author.Email} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {author} ON {p.UserId} = {author.Id}");
 
-        Console.WriteLine($"SQL:    {q6.Sql}");
+        Console.WriteLine($"SQL:    {q6.Format}");
         Console.WriteLine();
 
         Console.WriteLine("✅ All examples completed successfully!");
         Console.WriteLine("\n🎯 Compile-time generation result (problem statement scenario):");
         Console.WriteLine("  Input  : context.Query<User, Post>((u, p) => $\"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p}...\")");
-        Console.WriteLine($"  Output : {q2.Sql}");
+        Console.WriteLine($"  Output : {q2.Format}");
         Console.WriteLine("\n📂 Generated interceptors are in the project's intermediate output:");
         Console.WriteLine("  obj/Debug/<tfm>/Generated/Preql.SourceGenerator/Preql.SourceGenerator.PreqlSourceGenerator/");
     }
 
-    private static string FormatParams(QueryResult q)
+    private static string FormatParams(FormattableString q)
     {
-        if (q.Parameters is not IReadOnlyList<object?> list || list.Count == 0)
-            return "none";
-        return string.Join(", ", list.Select((v, i) => $"@p{i}={v}"));
+        var args = q.GetArguments();
+        if (args.Length == 0) return "none";
+        return string.Join(", ", args.Select((v, i) => $"@p{i}={v}"));
     }
 }
