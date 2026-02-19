@@ -15,7 +15,7 @@ internal static class QueryExpressionAnalyzer
     private record ParameterTableInfo(ParameterExpression Parameter, string TableName, string Alias);
 
     /// <summary>Analyzes a single-type query expression.</summary>
-    public static QueryResult Analyze<T>(
+    public static FormattableString Analyze<T>(
         Expression<Func<T, FormattableString>> lambda,
         SqlDialect dialect) where T : class
     {
@@ -27,7 +27,7 @@ internal static class QueryExpressionAnalyzer
     }
 
     /// <summary>Analyzes a two-type query expression.</summary>
-    public static QueryResult Analyze<T1, T2>(
+    public static FormattableString Analyze<T1, T2>(
         Expression<Func<T1, T2, FormattableString>> lambda,
         SqlDialect dialect) where T1 : class where T2 : class
     {
@@ -40,7 +40,7 @@ internal static class QueryExpressionAnalyzer
     }
 
     /// <summary>Analyzes a three-type query expression.</summary>
-    public static QueryResult Analyze<T1, T2, T3>(
+    public static FormattableString Analyze<T1, T2, T3>(
         Expression<Func<T1, T2, T3, FormattableString>> lambda,
         SqlDialect dialect) where T1 : class where T2 : class where T3 : class
     {
@@ -54,7 +54,7 @@ internal static class QueryExpressionAnalyzer
     }
 
     /// <summary>Analyzes a four-type query expression.</summary>
-    public static QueryResult Analyze<T1, T2, T3, T4>(
+    public static FormattableString Analyze<T1, T2, T3, T4>(
         Expression<Func<T1, T2, T3, T4, FormattableString>> lambda,
         SqlDialect dialect) where T1 : class where T2 : class where T3 : class where T4 : class
     {
@@ -69,7 +69,7 @@ internal static class QueryExpressionAnalyzer
     }
 
     /// <summary>Analyzes a five-type query expression.</summary>
-    public static QueryResult Analyze<T1, T2, T3, T4, T5>(
+    public static FormattableString Analyze<T1, T2, T3, T4, T5>(
         Expression<Func<T1, T2, T3, T4, T5, FormattableString>> lambda,
         SqlDialect dialect) where T1 : class where T2 : class where T3 : class where T4 : class where T5 : class
     {
@@ -84,7 +84,7 @@ internal static class QueryExpressionAnalyzer
         return AnalyzeCore(lambda.Body, paramInfos, dialect);
     }
 
-    private static QueryResult AnalyzeCore(
+    private static FormattableString AnalyzeCore(
         Expression body,
         IReadOnlyList<ParameterTableInfo> paramInfos,
         SqlDialect dialect)
@@ -102,7 +102,7 @@ internal static class QueryExpressionAnalyzer
             "Example: (u) => $\"SELECT {u.Name} FROM {u}\"");
     }
 
-    private static QueryResult ProcessFormattableStringCreate(
+    private static FormattableString ProcessFormattableStringCreate(
         MethodCallExpression call,
         Dictionary<ParameterExpression, ParameterTableInfo> paramMap,
         SqlDialect dialect)
@@ -116,10 +116,9 @@ internal static class QueryExpressionAnalyzer
             ? (IReadOnlyList<Expression>)arr.Expressions
             : call.Arguments.Skip(1).ToList();
 
-        var sqlBuilder = new StringBuilder();
-        var interpolatedFormatBuilder = new StringBuilder();
+        var formatBuilder = new StringBuilder();
         var parameters = new List<object?>();
-        int sqlParamIndex = 0;
+        int paramIndex = 0;
 
         // Walk through the format string, replacing {n} placeholders with SQL fragments
         int lastPos = 0;
@@ -130,10 +129,9 @@ internal static class QueryExpressionAnalyzer
 
             if (i + 1 < format.Length && format[i + 1] == '{')
             {
-                // Escaped {{ → emit single { in SQL; keep {{ escaped in interpolated format
-                sqlBuilder.Append(format, lastPos, i - lastPos + 1);
-                AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, i - lastPos);
-                interpolatedFormatBuilder.Append("{{");
+                // Escaped {{ → keep {{ escaped in format
+                AppendEscapedForInterpolation(formatBuilder, format, lastPos, i - lastPos);
+                formatBuilder.Append("{{");
                 i++;
                 lastPos = i + 1;
                 continue;
@@ -144,8 +142,7 @@ internal static class QueryExpressionAnalyzer
                 continue;
 
             // Emit literal text before this placeholder
-            sqlBuilder.Append(format, lastPos, i - lastPos);
-            AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, i - lastPos);
+            AppendEscapedForInterpolation(formatBuilder, format, lastPos, i - lastPos);
 
             // Parse the placeholder index (may have format specifiers like {0:d} or alignment {0,-5})
             var placeholder = format.AsSpan(i + 1, endBrace - i - 1);
@@ -155,7 +152,7 @@ internal static class QueryExpressionAnalyzer
             if (int.TryParse(indexSpan, out int argIdx) && argIdx < argExprs.Count)
             {
                 var argExpr = UnwrapConvert(argExprs[argIdx]);
-                ProcessArgument(argExpr, paramMap, dialect, sqlBuilder, interpolatedFormatBuilder, parameters, ref sqlParamIndex);
+                ProcessArgument(argExpr, paramMap, dialect, formatBuilder, parameters, ref paramIndex);
             }
 
             i = endBrace;
@@ -163,31 +160,24 @@ internal static class QueryExpressionAnalyzer
         }
 
         // Append any trailing literal text
-        sqlBuilder.Append(format, lastPos, format.Length - lastPos);
-        AppendEscapedForInterpolation(interpolatedFormatBuilder, format, lastPos, format.Length - lastPos);
+        AppendEscapedForInterpolation(formatBuilder, format, lastPos, format.Length - lastPos);
 
-        var interpolated = FormattableStringFactory.Create(
-            interpolatedFormatBuilder.ToString(),
-            parameters.ToArray());
-
-        return new QueryResult(sqlBuilder.ToString(), parameters, interpolated);
+        return FormattableStringFactory.Create(formatBuilder.ToString(), parameters.ToArray());
     }
 
     private static void ProcessArgument(
         Expression argExpr,
         Dictionary<ParameterExpression, ParameterTableInfo> paramMap,
         SqlDialect dialect,
-        StringBuilder sqlBuilder,
-        StringBuilder interpolatedFormatBuilder,
+        StringBuilder formatBuilder,
         List<object?> parameters,
-        ref int sqlParamIndex)
+        ref int paramIndex)
     {
         // Case 1: Direct lambda parameter → table reference  e.g. {u} → "Users" u
         if (argExpr is ParameterExpression paramExpr && paramMap.TryGetValue(paramExpr, out var tableInfo))
         {
             var tableRef = FormatTableRef(tableInfo.TableName, tableInfo.Alias, dialect);
-            sqlBuilder.Append(tableRef);
-            AppendEscapedForInterpolation(interpolatedFormatBuilder, tableRef);
+            AppendEscapedForInterpolation(formatBuilder, tableRef);
             return;
         }
 
@@ -197,16 +187,14 @@ internal static class QueryExpressionAnalyzer
             paramMap.TryGetValue(memberParam, out var colTableInfo))
         {
             var colRef = FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect);
-            sqlBuilder.Append(colRef);
-            AppendEscapedForInterpolation(interpolatedFormatBuilder, colRef);
+            AppendEscapedForInterpolation(formatBuilder, colRef);
             return;
         }
 
-        // Case 3: Anything else → evaluate and pass as a SQL parameter  e.g. {userId} → @p0 / {0}
+        // Case 3: Anything else → evaluate and pass as a positional parameter  e.g. {userId} → {0}
         var value = EvaluateExpression(argExpr);
-        sqlBuilder.Append($"@p{sqlParamIndex}");
-        interpolatedFormatBuilder.Append($"{{{sqlParamIndex}}}");
-        sqlParamIndex++;
+        formatBuilder.Append($"{{{paramIndex}}}");
+        paramIndex++;
         parameters.Add(value);
     }
 

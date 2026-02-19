@@ -24,8 +24,7 @@ public class AttributeTests
         public string FirstName { get; set; } = string.Empty;
     }
 
-    private static IReadOnlyList<object?> GetParameters(QueryResult query) =>
-        query.Parameters as IReadOnlyList<object?> ?? [];
+    private static object?[] GetArguments(FormattableString query) => query.GetArguments();
 
     // --- ColumnAttribute ---
 
@@ -37,7 +36,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Sql);
+        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Format);
     }
 
     [Fact]
@@ -49,8 +48,8 @@ public class AttributeTests
             $"SELECT {u.Name}, {u.Email} FROM {u}");
 
         // Column names come from [Column] attributes
-        Assert.Contains("u.[user_name]", query.Sql);
-        Assert.Contains("u.[user_email]", query.Sql);
+        Assert.Contains("u.[user_name]", query.Format);
+        Assert.Contains("u.[user_email]", query.Format);
     }
 
     [Fact]
@@ -61,7 +60,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.`first_name` FROM `UserWithColumnAttribute` u", query.Sql);
+        Assert.Equal("SELECT u.`first_name` FROM `UserWithColumnAttribute` u", query.Format);
     }
 
     [Fact]
@@ -72,7 +71,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Sql);
+        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Format);
     }
 
     // --- ColumnAttribute constructor ---
@@ -122,6 +121,6 @@ public class AttributeTests
         var query = preql.Query<UserWithTableAttribute>((u) =>
             $"SELECT {u.Id} FROM {u}");
 
-        Assert.Contains("\"tbl_users\" u", query.Sql);
+        Assert.Contains("\"tbl_users\" u", query.Format);
     }
 }

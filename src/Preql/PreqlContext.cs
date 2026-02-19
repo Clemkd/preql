@@ -32,26 +32,26 @@ public class PreqlContext : IPreqlContext
     }
 
     /// <inheritdoc />
-    public QueryResult Query<T>(Expression<Func<T, FormattableString>> queryExpression) where T : class
+    public FormattableString Query<T>(Expression<Func<T, FormattableString>> queryExpression) where T : class
         => QueryExpressionAnalyzer.Analyze(queryExpression, Dialect);
 
     /// <inheritdoc />
-    public QueryResult Query<T1, T2>(Expression<Func<T1, T2, FormattableString>> queryExpression)
+    public FormattableString Query<T1, T2>(Expression<Func<T1, T2, FormattableString>> queryExpression)
         where T1 : class where T2 : class
         => QueryExpressionAnalyzer.Analyze(queryExpression, Dialect);
 
     /// <inheritdoc />
-    public QueryResult Query<T1, T2, T3>(Expression<Func<T1, T2, T3, FormattableString>> queryExpression)
+    public FormattableString Query<T1, T2, T3>(Expression<Func<T1, T2, T3, FormattableString>> queryExpression)
         where T1 : class where T2 : class where T3 : class
         => QueryExpressionAnalyzer.Analyze(queryExpression, Dialect);
 
     /// <inheritdoc />
-    public QueryResult Query<T1, T2, T3, T4>(Expression<Func<T1, T2, T3, T4, FormattableString>> queryExpression)
+    public FormattableString Query<T1, T2, T3, T4>(Expression<Func<T1, T2, T3, T4, FormattableString>> queryExpression)
         where T1 : class where T2 : class where T3 : class where T4 : class
         => QueryExpressionAnalyzer.Analyze(queryExpression, Dialect);
 
     /// <inheritdoc />
-    public QueryResult Query<T1, T2, T3, T4, T5>(Expression<Func<T1, T2, T3, T4, T5, FormattableString>> queryExpression)
+    public FormattableString Query<T1, T2, T3, T4, T5>(Expression<Func<T1, T2, T3, T4, T5, FormattableString>> queryExpression)
         where T1 : class where T2 : class where T3 : class where T4 : class where T5 : class
         => QueryExpressionAnalyzer.Analyze(queryExpression, Dialect);
 }

@@ -117,28 +117,28 @@ public class ServiceCollectionExtensionsTests
     {
         public SqlDialect Dialect => SqlDialect.PostgreSql;
 
-        public QueryResult Query<T>(
+        public FormattableString Query<T>(
             System.Linq.Expressions.Expression<Func<T, FormattableString>> queryExpression) where T : class
-            => new QueryResult();
+            => $"";
 
-        public QueryResult Query<T1, T2>(
+        public FormattableString Query<T1, T2>(
             System.Linq.Expressions.Expression<Func<T1, T2, FormattableString>> queryExpression)
             where T1 : class where T2 : class
-            => new QueryResult();
+            => $"";
 
-        public QueryResult Query<T1, T2, T3>(
+        public FormattableString Query<T1, T2, T3>(
             System.Linq.Expressions.Expression<Func<T1, T2, T3, FormattableString>> queryExpression)
             where T1 : class where T2 : class where T3 : class
-            => new QueryResult();
+            => $"";
 
-        public QueryResult Query<T1, T2, T3, T4>(
+        public FormattableString Query<T1, T2, T3, T4>(
             System.Linq.Expressions.Expression<Func<T1, T2, T3, T4, FormattableString>> queryExpression)
             where T1 : class where T2 : class where T3 : class where T4 : class
-            => new QueryResult();
+            => $"";
 
-        public QueryResult Query<T1, T2, T3, T4, T5>(
+        public FormattableString Query<T1, T2, T3, T4, T5>(
             System.Linq.Expressions.Expression<Func<T1, T2, T3, T4, T5, FormattableString>> queryExpression)
             where T1 : class where T2 : class where T3 : class where T4 : class where T5 : class
-            => new QueryResult();
+            => $"";
     }
 }

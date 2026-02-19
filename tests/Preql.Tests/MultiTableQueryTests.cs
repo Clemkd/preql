@@ -36,8 +36,7 @@ public class MultiTableQueryTests
         public string Title { get; set; } = string.Empty;
     }
 
-    private static IReadOnlyList<object?> GetParameters(QueryResult query) =>
-        query.Parameters as IReadOnlyList<object?> ?? [];
+    private static object?[] GetArguments(FormattableString query) => query.GetArguments();
 
     // --- Two tables ---
 
@@ -51,8 +50,8 @@ public class MultiTableQueryTests
 
         Assert.Equal(
             "SELECT u.\"Name\", p.\"Message\" FROM \"User\" u JOIN \"Post\" p ON u.\"Id\" = p.\"UserId\"",
-            query.Sql);
-        Assert.Empty(GetParameters(query));
+            query.Format);
+        Assert.Empty(GetArguments(query));
     }
 
     [Fact]
@@ -65,11 +64,11 @@ public class MultiTableQueryTests
             $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} WHERE {u.Name} LIKE {searchTerm}");
 
         Assert.Equal(
-            "SELECT u.[Name], p.[Message] FROM [User] u JOIN [Post] p ON u.[Id] = p.[UserId] WHERE u.[Name] LIKE @p0",
-            query.Sql);
-        var parameters = GetParameters(query);
-        Assert.Single(parameters);
-        Assert.Equal("%Alice%", parameters[0]);
+            "SELECT u.[Name], p.[Message] FROM [User] u JOIN [Post] p ON u.[Id] = p.[UserId] WHERE u.[Name] LIKE {0}",
+            query.Format);
+        var args = GetArguments(query);
+        Assert.Single(args);
+        Assert.Equal("%Alice%", args[0]);
     }
 
     [Fact]
@@ -82,7 +81,7 @@ public class MultiTableQueryTests
 
         Assert.Equal(
             "SELECT u.`Id`, p.`Id` FROM `User` u JOIN `Post` p ON u.`Id` = p.`UserId`",
-            query.Sql);
+            query.Format);
     }
 
     [Fact]
@@ -95,7 +94,7 @@ public class MultiTableQueryTests
 
         Assert.Equal(
             "SELECT u.\"Name\", p.\"Message\" FROM \"User\" u JOIN \"Post\" p ON u.\"Id\" = p.\"UserId\"",
-            query.Sql);
+            query.Format);
     }
 
     // --- Three tables ---
@@ -110,8 +109,8 @@ public class MultiTableQueryTests
 
         Assert.Equal(
             "SELECT u.\"Name\", p.\"Message\", c.\"Content\" FROM \"User\" u JOIN \"Post\" p ON u.\"Id\" = p.\"UserId\" JOIN \"Comment\" c ON p.\"Id\" = c.\"PostId\"",
-            query.Sql);
-        Assert.Empty(GetParameters(query));
+            query.Format);
+        Assert.Empty(GetArguments(query));
     }
 
     [Fact]
@@ -124,7 +123,7 @@ public class MultiTableQueryTests
 
         Assert.Equal(
             "SELECT u.[Id], p.[Id], c.[Id] FROM [User] u JOIN [Post] p ON u.[Id] = p.[UserId] JOIN [Comment] c ON p.[Id] = c.[PostId]",
-            query.Sql);
+            query.Format);
     }
 
     // --- Four tables ---
@@ -137,14 +136,14 @@ public class MultiTableQueryTests
         var query = preql.Query<User, Post, Comment, Tag>((u, p, c, t) =>
             $"SELECT {u.Name}, {p.Message}, {c.Content}, {t.Name} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {c} ON {p.Id} = {c.PostId} JOIN {t} ON {t.Id} = {p.Id}");
 
-        Assert.Contains("u.\"Name\"", query.Sql);
-        Assert.Contains("p.\"Message\"", query.Sql);
-        Assert.Contains("c.\"Content\"", query.Sql);
-        Assert.Contains("t.\"Name\"", query.Sql);
-        Assert.Contains("\"User\" u", query.Sql);
-        Assert.Contains("\"Post\" p", query.Sql);
-        Assert.Contains("\"Comment\" c", query.Sql);
-        Assert.Contains("\"Tag\" t", query.Sql);
+        Assert.Contains("u.\"Name\"", query.Format);
+        Assert.Contains("p.\"Message\"", query.Format);
+        Assert.Contains("c.\"Content\"", query.Format);
+        Assert.Contains("t.\"Name\"", query.Format);
+        Assert.Contains("\"User\" u", query.Format);
+        Assert.Contains("\"Post\" p", query.Format);
+        Assert.Contains("\"Comment\" c", query.Format);
+        Assert.Contains("\"Tag\" t", query.Format);
     }
 
     [Fact]
@@ -155,10 +154,10 @@ public class MultiTableQueryTests
         var query = preql.Query<User, Post, Comment, Tag>((u, p, c, t) =>
             $"SELECT {u.Id}, {p.Id}, {c.Id}, {t.Id} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {c} ON {p.Id} = {c.PostId} JOIN {t} ON {t.Id} = {p.Id}");
 
-        Assert.Contains("[User] u", query.Sql);
-        Assert.Contains("[Post] p", query.Sql);
-        Assert.Contains("[Comment] c", query.Sql);
-        Assert.Contains("[Tag] t", query.Sql);
+        Assert.Contains("[User] u", query.Format);
+        Assert.Contains("[Post] p", query.Format);
+        Assert.Contains("[Comment] c", query.Format);
+        Assert.Contains("[Tag] t", query.Format);
     }
 
     // --- Five tables ---
@@ -171,16 +170,16 @@ public class MultiTableQueryTests
         var query = preql.Query<User, Post, Comment, Tag, Category>((u, p, c, t, cat) =>
             $"SELECT {u.Name}, {p.Message}, {c.Content}, {t.Name}, {cat.Title} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {c} ON {p.Id} = {c.PostId} JOIN {t} ON {t.Id} = {p.Id} JOIN {cat} ON {cat.Id} = {p.Id}");
 
-        Assert.Contains("u.\"Name\"", query.Sql);
-        Assert.Contains("p.\"Message\"", query.Sql);
-        Assert.Contains("c.\"Content\"", query.Sql);
-        Assert.Contains("t.\"Name\"", query.Sql);
-        Assert.Contains("cat.\"Title\"", query.Sql);
-        Assert.Contains("\"User\" u", query.Sql);
-        Assert.Contains("\"Post\" p", query.Sql);
-        Assert.Contains("\"Comment\" c", query.Sql);
-        Assert.Contains("\"Tag\" t", query.Sql);
-        Assert.Contains("\"Category\" cat", query.Sql);
+        Assert.Contains("u.\"Name\"", query.Format);
+        Assert.Contains("p.\"Message\"", query.Format);
+        Assert.Contains("c.\"Content\"", query.Format);
+        Assert.Contains("t.\"Name\"", query.Format);
+        Assert.Contains("cat.\"Title\"", query.Format);
+        Assert.Contains("\"User\" u", query.Format);
+        Assert.Contains("\"Post\" p", query.Format);
+        Assert.Contains("\"Comment\" c", query.Format);
+        Assert.Contains("\"Tag\" t", query.Format);
+        Assert.Contains("\"Category\" cat", query.Format);
     }
 
     [Fact]
@@ -191,11 +190,11 @@ public class MultiTableQueryTests
         var query = preql.Query<User, Post, Comment, Tag, Category>((u, p, c, t, cat) =>
             $"SELECT {u.Id}, {p.Id}, {c.Id}, {t.Id}, {cat.Id} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {c} ON {p.Id} = {c.PostId} JOIN {t} ON {t.Id} = {p.Id} JOIN {cat} ON {cat.Id} = {p.Id}");
 
-        Assert.Contains("[User] u", query.Sql);
-        Assert.Contains("[Post] p", query.Sql);
-        Assert.Contains("[Comment] c", query.Sql);
-        Assert.Contains("[Tag] t", query.Sql);
-        Assert.Contains("[Category] cat", query.Sql);
+        Assert.Contains("[User] u", query.Format);
+        Assert.Contains("[Post] p", query.Format);
+        Assert.Contains("[Comment] c", query.Format);
+        Assert.Contains("[Tag] t", query.Format);
+        Assert.Contains("[Category] cat", query.Format);
     }
 
     [Fact]
@@ -207,9 +206,9 @@ public class MultiTableQueryTests
         var query = preql.Query<User, Post, Comment, Tag, Category>((u, p, c, t, cat) =>
             $"SELECT {u.Name} FROM {u} JOIN {p} ON {u.Id} = {p.UserId} JOIN {c} ON {p.Id} = {c.PostId} JOIN {t} ON {t.Id} = {p.Id} JOIN {cat} ON {cat.Id} = {p.Id} WHERE {u.Id} > {minId}");
 
-        Assert.Contains("@p0", query.Sql);
-        var parameters = GetParameters(query);
-        Assert.Single(parameters);
-        Assert.Equal(10, parameters[0]);
+        Assert.Contains("{0}", query.Format);
+        var args = GetArguments(query);
+        Assert.Single(args);
+        Assert.Equal(10, args[0]);
     }
 }

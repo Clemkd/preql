@@ -15,11 +15,12 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
         var query = db.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
 
-        // 2. Preql generates (at compile time via source generator, or at runtime as fallback):
-        // query.Sql -> "SELECT u.\"Id\", u.\"Name\", u.\"Email\" FROM \"Users\" u WHERE u.\"Id\" = @p0"
-        // query.Parameters -> [@p0=42]
+        // 2. Preql returns a FormattableString (at compile time via source generator, or at runtime as fallback):
+        // query.Format   -> "SELECT u.\"Id\", u.\"Name\", u.\"Email\" FROM \"Users\" u WHERE u.\"Id\" = {0}"
+        // query.GetArguments() -> [42]
         
-        return await conn.QuerySingleAsync<User>(query.Sql, query.Parameters);
+        // Use directly with EF Core's FromSqlInterpolated, or destructure for Dapper / ADO.NET:
+        return await conn.QuerySingleAsync<User>(query.Format, query.GetArguments());
     }
 }
 ```
@@ -70,10 +71,10 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
         var query = db.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
         
-        // Generated SQL: SELECT u."Id", u."Name", u."Email" FROM "Users" u WHERE u."Id" = @p0
-        // Parameters: [@p0=42]
+        // query.Format    -> SELECT u."Id", u."Name", u."Email" FROM "Users" u WHERE u."Id" = {0}
+        // query.GetArguments() -> [42]
         
-        return await conn.QuerySingleAsync<User>(query.Sql, query.Parameters);
+        return await conn.QuerySingleAsync<User>(query.Format, query.GetArguments());
     }
 }
 ```
@@ -94,15 +95,15 @@ public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
         WHERE {u.Name} LIKE {searchTerm}
         """);
     
-    // Generated SQL (PostgreSQL): 
+    // query.Format (PostgreSQL): 
     // SELECT u."Id", u."Name", p."Message"
     // FROM "Users" u
     // JOIN "Posts" p ON u."Id" = p."UserId"
-    // WHERE u."Name" LIKE @p0
+    // WHERE u."Name" LIKE {0}
     
-    // Parameters: { p0: "%John%" }
+    // query.GetArguments(): ["%John%"]
     
-    return await conn.QueryAsync<UserPost>(query.Sql, query.Parameters);
+    return await conn.QueryAsync<UserPost>(query.Format, query.GetArguments());
 }
 ```
 
@@ -193,10 +194,10 @@ Developer writes:
 
 Source generator emits (PreqlInterceptor_XXXX.g.cs):
   [InterceptsLocation(1, "base64encodedlocationdata==")]
-  public static QueryResult QueryXXXX<T1, T2>(this IPreqlContext context, ...)
+  public static FormattableString QueryXXXX<T1, T2>(this IPreqlContext context, ...)
   {
       var __d = context.Dialect;
-      var __sql = string.Concat(
+      var __format = string.Concat(
           "SELECT ",
           SqlIdentifierHelper.Col(__d, "u", "Name"),   // ← compile-time knowledge
           ", ",
@@ -207,7 +208,7 @@ Source generator emits (PreqlInterceptor_XXXX.g.cs):
           SqlIdentifierHelper.Table(__d, "Posts", "p"),
           ...
       );
-      return new QueryResult(__sql, Array.Empty<object?>());
+      return FormattableStringFactory.Create(__format);
   }
 ```
 

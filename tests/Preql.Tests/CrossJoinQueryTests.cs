@@ -10,8 +10,7 @@ public class CrossJoinQueryTests
         public string Name { get; set; } = string.Empty;
     }
 
-    private static IReadOnlyList<object?> GetParameters(QueryResult query) =>
-        query.Parameters as IReadOnlyList<object?> ?? [];
+    private static object?[] GetArguments(FormattableString query) => query.GetArguments();
 
     [Fact]
     public void Query_CrossJoin_SameType_PostgreSql_GeneratesCorrectSql()
@@ -23,8 +22,8 @@ public class CrossJoinQueryTests
 
         Assert.Equal(
             "select u1.\"Name\", u2.\"Name\" from \"User\" u1 cross join \"User\" u2",
-            query.Sql);
-        Assert.Empty(GetParameters(query));
+            query.Format);
+        Assert.Empty(GetArguments(query));
     }
 
     [Fact]
@@ -37,8 +36,8 @@ public class CrossJoinQueryTests
 
         Assert.Equal(
             "select u1.[Name], u2.[Name] from [User] u1 cross join [User] u2",
-            query.Sql);
-        Assert.Empty(GetParameters(query));
+            query.Format);
+        Assert.Empty(GetArguments(query));
     }
 
     [Fact]
@@ -51,8 +50,8 @@ public class CrossJoinQueryTests
 
         Assert.Equal(
             "select u1.`Name`, u2.`Name` from `User` u1 cross join `User` u2",
-            query.Sql);
-        Assert.Empty(GetParameters(query));
+            query.Format);
+        Assert.Empty(GetArguments(query));
     }
 
     [Fact]
@@ -63,9 +62,9 @@ public class CrossJoinQueryTests
         var query = preql.Query<User, User>((u1, u2) =>
             $"select {u1.Name}, {u2.Name} from {u1} cross join {u2}");
 
-        Assert.Contains("u1.[Name]", query.Sql);
-        Assert.Contains("u2.[Name]", query.Sql);
-        Assert.Contains("[User] u1", query.Sql);
-        Assert.Contains("[User] u2", query.Sql);
+        Assert.Contains("u1.[Name]", query.Format);
+        Assert.Contains("u2.[Name]", query.Format);
+        Assert.Contains("[User] u1", query.Format);
+        Assert.Contains("[User] u2", query.Format);
     }
 }
