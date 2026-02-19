@@ -22,7 +22,7 @@ public class CrossJoinQueryTests
             $"select {u1.Name}, {u2.Name} from {u1} cross join {u2}");
 
         Assert.Equal(
-            "select u1.\"Name\", u2.\"Name\" from \"Users\" u1 cross join \"Users\" u2",
+            "select u1.\"Name\", u2.\"Name\" from \"User\" u1 cross join \"User\" u2",
             query.Sql);
         Assert.Empty(GetParameters(query));
     }
@@ -36,7 +36,7 @@ public class CrossJoinQueryTests
             $"select {u1.Name}, {u2.Name} from {u1} cross join {u2}");
 
         Assert.Equal(
-            "select u1.[Name], u2.[Name] from [Users] u1 cross join [Users] u2",
+            "select u1.[Name], u2.[Name] from [User] u1 cross join [User] u2",
             query.Sql);
         Assert.Empty(GetParameters(query));
     }
@@ -50,7 +50,7 @@ public class CrossJoinQueryTests
             $"select {u1.Name}, {u2.Name} from {u1} cross join {u2}");
 
         Assert.Equal(
-            "select u1.`Name`, u2.`Name` from `Users` u1 cross join `Users` u2",
+            "select u1.`Name`, u2.`Name` from `User` u1 cross join `User` u2",
             query.Sql);
         Assert.Empty(GetParameters(query));
     }
@@ -65,7 +65,7 @@ public class CrossJoinQueryTests
 
         Assert.Contains("u1.[Name]", query.Sql);
         Assert.Contains("u2.[Name]", query.Sql);
-        Assert.Contains("[Users] u1", query.Sql);
-        Assert.Contains("[Users] u2", query.Sql);
+        Assert.Contains("[User] u1", query.Sql);
+        Assert.Contains("[User] u2", query.Sql);
     }
 }

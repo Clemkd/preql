@@ -37,7 +37,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttributes\" u", query.Sql);
+        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Sql);
     }
 
     [Fact]
@@ -61,7 +61,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.`first_name` FROM `UserWithColumnAttributes` u", query.Sql);
+        Assert.Equal("SELECT u.`first_name` FROM `UserWithColumnAttribute` u", query.Sql);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class AttributeTests
         var query = preql.Query<UserWithColumnAttribute>((u) =>
             $"SELECT {u.FirstName} FROM {u}");
 
-        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttributes\" u", query.Sql);
+        Assert.Equal("SELECT u.\"first_name\" FROM \"UserWithColumnAttribute\" u", query.Sql);
     }
 
     // --- ColumnAttribute constructor ---
@@ -111,20 +111,17 @@ public class AttributeTests
         Assert.Equal("my_table", attr.Name);
     }
 
-    // --- TableAttribute applied to class (runtime fallback uses type name, not attribute) ---
+    // --- TableAttribute applied to class ---
 
     [Fact]
-    public void Query_TableAttribute_RuntimeFallback_UsesTypeName()
+    public void Query_TableAttribute_Runtime_UsesAttributeName()
     {
-        // The runtime analyzer does simple pluralization of the C# type name.
-        // The [Table] attribute is honored by the source generator (compile-time),
-        // not by the runtime fallback. This test documents that behavior.
+        // The runtime analyzer honors the [Table] attribute and uses its name.
         var preql = new PreqlContext(SqlDialect.PostgreSql);
 
         var query = preql.Query<UserWithTableAttribute>((u) =>
             $"SELECT {u.Id} FROM {u}");
 
-        // Runtime uses type name "UserWithTableAttribute" + pluralization
-        Assert.Contains("\"UserWithTableAttributes\" u", query.Sql);
+        Assert.Contains("\"tbl_users\" u", query.Sql);
     }
 }
