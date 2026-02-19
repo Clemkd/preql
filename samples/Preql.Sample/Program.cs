@@ -1,5 +1,4 @@
 using Preql;
-using Preql.Sample.Generated;
 
 namespace Preql.Sample;
 
@@ -19,16 +18,6 @@ class Program
         Console.WriteLine("🛡️ Preql Sample Application");
         Console.WriteLine("=============================\n");
 
-        // Run the new multi-table query examples
-        Console.WriteLine("Running Multi-Table Query Examples with Aliases...\n");
         AliasExamples.Run();
-    }
-
-    static string FormatParamList(IReadOnlyList<object?> parameters)
-    {
-        if (parameters == null || parameters.Count == 0)
-            return "none";
-
-        return string.Join(", ", parameters.Select((p, i) => $"@p{i}={p}"));
     }
 }

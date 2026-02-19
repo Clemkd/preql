@@ -136,19 +136,20 @@ public async Task<IEnumerable<User>> SearchUsers(string searchTerm, int minAge)
 ```csharp
 // PostgreSQL: Uses double quotes for identifiers
 var pgContext = new PreqlContext(SqlDialect.PostgreSql);
-// Generated: SELECT "Name" FROM "Users"
+var q = pgContext.Query<User, Post>((u, p) => $"SELECT {u.Name} FROM {u} JOIN {p}...");
+// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
 
-// SQL Server: Uses square brackets for identifiers  
+// SQL Server: Uses square brackets for identifiers
 var sqlContext = new PreqlContext(SqlDialect.SqlServer);
-// Generated: SELECT [Name] FROM [Users]
+// Generated: SELECT u.[Name] FROM [Users] u JOIN [Posts] p ...
 
 // MySQL: Uses backticks for identifiers
 var mysqlContext = new PreqlContext(SqlDialect.MySql);
-// Generated: SELECT `Name` FROM `Users`
+// Generated: SELECT u.`Name` FROM `Users` u JOIN `Posts` p ...
 
 // SQLite: Uses double quotes for identifiers
 var sqliteContext = new PreqlContext(SqlDialect.Sqlite);
-// Generated: SELECT "Name" FROM "Users"
+// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
 ```
 
 ## 🏗️ How It Works
