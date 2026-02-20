@@ -3,14 +3,14 @@
 [![CI](https://github.com/Clemkd/preql/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Clemkd/preql/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/Clemkd/preql/branch/main/graph/badge.svg)](https://codecov.io/gh/Clemkd/preql)
 
-**Preql** (pronounced *Prequel*) is a high-performance C# library that transmutes typed interpolated strings into raw SQL.
+**Preql** (pronounced *Prequel*) is a C# library that transmutes typed interpolated strings into SQL.
 
-By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries with automatic table aliases. This SQL generation happens naturally at compile time of your application.
+By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, at compile time, parameterized SQL queries with automatic table aliases.
 
 ## ✨ Key Features
 
 * 🚀 **Clean SQL Generation**: Automatically converts typed queries into parameterized SQL
-* 🛠️ **Strongly Typed**: Refactor-friendly. If you rename a property in your class, your query won't compile.
+* 🛠️ **Strongly Typed**: Refactor-friendly. If you rename a property in your class, your query will be updated accordingly.
 * 💉 **IoC Ready**: Inject IPreqlContext and switch dialects (Postgres, SQL Server, MySQL, SQLite) per service.
 * 🧩 **Agnostic**: Preql only generates SQL. Use it seamlessly with Dapper, ADO.NET, or EF Core.
 * 🛡️ **Built-in Security**: Automatically converts C# variables into SQL parameters to prevent injection.
@@ -45,11 +45,11 @@ public class User
     public string Email { get; set; }
 }
 
-public class UserRepository(IPreqlContext db, IDbConnection conn)
+public class UserRepository(IPreqlContext preql, IDbConnection conn)
 {
     public async Task<User> GetById(int id)
     {
-        var query = db.Query<User>((u) => 
+        var query = preql.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
         
         // query.Format    -> SELECT u."Id", u."Name", u."Email" FROM "User" u WHERE u."Id" = {0}
@@ -68,7 +68,7 @@ Preql supports multi-table queries with automatic table aliases:
 public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
 {
     // Multi-table query with automatic aliases
-    var query = db.Query<User, Post>((u, p) => 
+    var query = preql.Query<User, Post>((u, p) => 
         $"""
         SELECT {u.Id}, {u.Name}, {p.Message}
         FROM {u}
@@ -131,7 +131,7 @@ public class Post
 }
 
 // {p} now resolves to "tbl_posts" p instead of "Post" p
-var query = db.Query<User, Post>((u, p) =>
+var query = preql.Query<User, Post>((u, p) =>
     $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
 // Generated (PostgreSQL): SELECT u."Name", p."Message" FROM "User" u JOIN "tbl_posts" p ON u."Id" = p."UserId"
 ```
@@ -150,7 +150,7 @@ public class User
     public string Name { get; set; }
 }
 
-var query = db.Query<User>((u) => $"SELECT {u.Id}, {u.Name} FROM {u}");
+var query = preql.Query<User>((u) => $"SELECT {u.Id}, {u.Name} FROM {u}");
 // Generated (PostgreSQL): SELECT u."user_id", u."full_name" FROM "User" u
 ```
 
