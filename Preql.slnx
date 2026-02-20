@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/Preql.Sample/Preql.Sample.csproj" />
+    <Project Path="samples/Preql.Sample.EFCore/Preql.Sample.EFCore.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Preql.SourceGenerator/Preql.SourceGenerator.csproj" />
