@@ -3,11 +3,11 @@ using System.Linq.Expressions;
 namespace Preql;
 
 /// <summary>
-/// Lightweight helpers used by source-generated interceptors.
+/// Lightweight helpers used by source-generated interceptors and the runtime fallback.
 /// <list type="bullet">
 ///   <item><see cref="Col"/> / <see cref="Table"/> apply dialect-specific quoting to
-///   pre-known identifiers (SQL structure is determined at compile-time; only quoting
-///   is applied at runtime).</item>
+///   identifiers.  They are used by the runtime expression-tree analysis path;
+///   the generated interceptors now embed fully pre-computed SQL literals instead.</item>
 ///   <item><see cref="EvalParamArg"/> extracts a single runtime parameter value from
 ///   the interpolated-string expression tree without full analysis.</item>
 /// </list>
