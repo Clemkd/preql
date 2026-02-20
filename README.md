@@ -171,20 +171,23 @@ Compile-Time Source Generator:
   2. Analyzes semantic model (entity types, table names, [Table]/[Column] attributes)
   3. Extracts interpolated string from lambda body
   4. Classifies holes: {u}→Table, {u.Id}→Column, {userId}→Param
-  5. Pre-computes the full SQL format string for every dialect as a string literal
+  5. Tries to resolve the dialect of the receiver (e.g. from new PreqlContext(SqlDialect.PostgreSql))
+     • Dialect known   → embeds a SINGLE SQL string constant for that dialect only
+     • Dialect unknown → embeds pre-computed strings for all dialects, selects at runtime
   6. Emits PreqlInterceptor_XXXX.g.cs with [InterceptsLocation], replacing the original call
          ↓
 Generated Interceptor (Runtime):
-  - No SQL building at all — the complete SQL is already a string literal for every dialect
-  - Pure array-index lookup returns the pre-built FormattableString (no-param queries)
-  - For queries with parameters: array lookup + fast parameter extraction
+  - No SQL building at all — the complete SQL is already a string literal
+  - When dialect is known: return pre-built FormattableString directly (no-param queries)
+    or param extraction only (param queries)
+  - When dialect is unknown: single array-index lookup + optional param extraction
          ↓
 Result:
   query.Format: "SELECT u.\"Id\" FROM \"User\" u WHERE u.\"Id\" = {0}"
   query.GetArguments(): [userId_value]
 ```
 
-The generated interceptor looks like this:
+**When the dialect is known at compile time** (e.g. `var ctx = new PreqlContext(SqlDialect.PostgreSql); ctx.Query<T>(...)`), the generator emits a single SQL constant — no array, no runtime lookup:
 
 ```csharp
 // PreqlInterceptor_XXXX.g.cs  (auto-generated — do not edit)
@@ -193,7 +196,35 @@ The generated interceptor looks like this:
 
 file static class PreqlInterceptor_XXXX
 {
-    // All dialect variants pre-computed at compile time as string literals:
+    // Single SQL constant — only the dialect of this call site, known at compile time:
+    private static readonly string __format =
+        @"SELECT u.""Id"" FROM ""User"" u WHERE u.""Id"" = {0}";  // PostgreSql
+
+    [InterceptsLocation(1, "base64encodedlocationdata==")]
+    public static FormattableString QueryXXXX<T>(this PreqlContext context,
+        Expression<Func<T, FormattableString>> queryExpression) where T : class
+    {
+        // Entire runtime body — only parameter value extraction:
+        var __call = (MethodCallExpression)queryExpression.Body;
+        var __p0 = SqlIdentifierHelper.EvalParamArg(__call, /* index */ 2);
+        return FormattableStringFactory.Create(__format, __p0);
+    }
+}
+```
+
+For no-parameter queries with a known dialect, the method body is a single field return:
+
+```csharp
+    private static readonly global::System.FormattableString __result =
+        FormattableStringFactory.Create(@"SELECT u.""Id"", u.""Name"" FROM ""User"" u");
+
+    // Entire runtime body — zero allocations:
+    return __result;
+```
+
+**When the dialect is unknown** (e.g. injected `IPreqlContext`), all 4 dialect variants are embedded and the correct one is selected via a single array-index lookup:
+
+```csharp
     private static readonly string[] __formats =
     {
         @"SELECT u.""Id"" FROM ""User"" u WHERE u.""Id"" = {0}",  // PostgreSql
@@ -202,33 +233,9 @@ file static class PreqlInterceptor_XXXX
         @"SELECT u.""Id"" FROM ""User"" u WHERE u.""Id"" = {0}",  // Sqlite
     };
 
-    [InterceptsLocation(1, "base64encodedlocationdata==")]
-    public static FormattableString QueryXXXX<T>(this IPreqlContext context,
-        Expression<Func<T, FormattableString>> queryExpression) where T : class
-    {
-        // Entire runtime body — only parameter value extraction:
-        var __di = (int)context.Dialect;
-        var __format = (uint)__di < (uint)__formats.Length ? __formats[__di] : __formats[1];
-        var __call = (MethodCallExpression)queryExpression.Body;
-        var __p0 = SqlIdentifierHelper.EvalParamArg(__call, /* index */ 2);
-        return FormattableStringFactory.Create(__format, __p0);
-    }
-}
-```
-
-For queries with **no runtime parameters** (e.g. `SELECT {u.Id}, {u.Name} FROM {u}`), the generated code is even simpler — a single array-index lookup returning a pre-built `FormattableString`:
-
-```csharp
-    private static readonly global::System.FormattableString[] __cache =
-    {
-        FormattableStringFactory.Create(@"SELECT u.""Id"", u.""Name"" FROM ""User"" u"),
-        FormattableStringFactory.Create(@"SELECT u.[Id], u.[Name] FROM [User] u"),
-        FormattableStringFactory.Create(@"SELECT u.`Id`, u.`Name` FROM `User` u"),
-        FormattableStringFactory.Create(@"SELECT u.""Id"", u.""Name"" FROM ""User"" u"),
-    };
-
-    // Entire runtime body — zero allocations:
-    return (uint)__di < (uint)__cache.Length ? __cache[__di] : __cache[1];
+    var __di = (int)context.Dialect;
+    var __format = (uint)__di < (uint)__formats.Length ? __formats[__di] : __formats[1];
+    // ... param extraction ...
 ```
 
 ### Table Alias Generation
