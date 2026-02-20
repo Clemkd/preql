@@ -5,27 +5,7 @@
 
 **Preql** (pronounced *Prequel*) is a high-performance C# library that transmutes typed interpolated strings into raw SQL.
 
-```csharp
-public class UserRepository(IPreqlContext db, IDbConnection conn) 
-{
-    public async Task<User> GetById(int id) 
-    {
-        // 1. Write this (Fully typed, IntelliSense supported)
-        // Preql automatically distinguishes between Tables {u}, Columns {u.Name} and Variables {id}
-        var query = db.Query<User>((u) => 
-            $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
-
-        // 2. Preql returns a FormattableString (at compile time via source generator, or at runtime as fallback):
-        // query.Format   -> "SELECT u.\"Id\", u.\"Name\", u.\"Email\" FROM \"Users\" u WHERE u.\"Id\" = {0}"
-        // query.GetArguments() -> [42]
-        
-        // Use directly with EF Core's FromSqlInterpolated, or destructure for Dapper / ADO.NET:
-        return await conn.QuerySingleAsync<User>(query.Format, query.GetArguments());
-    }
-}
-```
-
-By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries with automatic table aliases.
+By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries with automatic table aliases. This SQL generation happens naturally at compile time of your application.
 
 ## ✨ Key Features
 
