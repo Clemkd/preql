@@ -16,6 +16,7 @@ By analyzing C# expression trees, Preql can intelligently distinguish between ta
 * 🛡️ **Built-in Security**: Automatically converts C# variables into SQL parameters to prevent injection.
 * 📦 **Zero Dependencies**: The core library has minimal dependencies for maximum compatibility.
 * 🏷️ **Custom Naming**: Override table and column names with `[Table]` and `[Column]` attributes.
+* ⚡ **Zero-overhead hot path**: With the source generator, simple queries return a pre-built `FormattableString` in a single array-index lookup — no allocations after the first call per dialect.
 
 ## 🚀 Setup
 
@@ -51,7 +52,7 @@ public class UserRepository(IPreqlContext db, IDbConnection conn)
         var query = db.Query<User>((u) => 
             $"SELECT {u.Id}, {u.Name}, {u.Email} FROM {u} WHERE {u.Id} = {id}");
         
-        // query.Format    -> SELECT u."Id", u."Name", u."Email" FROM "Users" u WHERE u."Id" = {0}
+        // query.Format    -> SELECT u."Id", u."Name", u."Email" FROM "User" u WHERE u."Id" = {0}
         // query.GetArguments() -> [42]
         
         return await conn.QuerySingleAsync<User>(query.Format, query.GetArguments());
@@ -77,8 +78,8 @@ public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
     
     // query.Format (PostgreSQL): 
     // SELECT u."Id", u."Name", p."Message"
-    // FROM "Users" u
-    // JOIN "Posts" p ON u."Id" = p."UserId"
+    // FROM "User" u
+    // JOIN "Post" p ON u."Id" = p."UserId"
     // WHERE u."Name" LIKE {0}
     
     // query.GetArguments(): ["%John%"]
@@ -89,7 +90,7 @@ public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
 
 **Key Features:**
 - Column references automatically include table aliases: `{u.Name}` → `u."Name"`
-- Table references include aliases: `{u}` → `"Users" u`
+- Table references include aliases: `{u}` → `"User" u`
 - Supports 2-5 tables in a single query
 - Works with JOINs, subqueries, and complex SQL
 
@@ -99,26 +100,26 @@ public async Task<IEnumerable<UserPost>> GetUserPosts(string searchTerm)
 // PostgreSQL: Uses double quotes for identifiers
 var pgContext = new PreqlContext(SqlDialect.PostgreSql);
 var q = pgContext.Query<User, Post>((u, p) => $"SELECT {u.Name} FROM {u} JOIN {p}...");
-// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
+// Generated: SELECT u."Name" FROM "User" u JOIN "Post" p ...
 
 // SQL Server: Uses square brackets for identifiers
 var sqlContext = new PreqlContext(SqlDialect.SqlServer);
-// Generated: SELECT u.[Name] FROM [Users] u JOIN [Posts] p ...
+// Generated: SELECT u.[Name] FROM [User] u JOIN [Post] p ...
 
 // MySQL: Uses backticks for identifiers
 var mysqlContext = new PreqlContext(SqlDialect.MySql);
-// Generated: SELECT u.`Name` FROM `Users` u JOIN `Posts` p ...
+// Generated: SELECT u.`Name` FROM `User` u JOIN `Post` p ...
 
 // SQLite: Uses double quotes for identifiers
 var sqliteContext = new PreqlContext(SqlDialect.Sqlite);
-// Generated: SELECT u."Name" FROM "Users" u JOIN "Posts" p ...
+// Generated: SELECT u."Name" FROM "User" u JOIN "Post" p ...
 ```
 
 ### Attribute Customization
 
 #### Custom Table Names
 
-Apply `[Table("...")]` to map an entity to a specific database table name instead of relying on automatic pluralization:
+Apply `[Table("...")]` to map an entity to a specific database table name instead of the default (the class name, used as-is):
 
 ```csharp
 [Table("tbl_posts")]
@@ -129,10 +130,10 @@ public class Post
     public int UserId { get; set; }
 }
 
-// {p} now resolves to "tbl_posts" p instead of "Posts" p
+// {p} now resolves to "tbl_posts" p instead of "Post" p
 var query = db.Query<User, Post>((u, p) =>
     $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}");
-// Generated (PostgreSQL): SELECT u."Name", p."Message" FROM "Users" u JOIN "tbl_posts" p ON u."Id" = p."UserId"
+// Generated (PostgreSQL): SELECT u."Name", p."Message" FROM "User" u JOIN "tbl_posts" p ON u."Id" = p."UserId"
 ```
 
 #### Custom Column Names
@@ -150,7 +151,7 @@ public class User
 }
 
 var query = db.Query<User>((u) => $"SELECT {u.Id}, {u.Name} FROM {u}");
-// Generated (PostgreSQL): SELECT u."user_id", u."full_name" FROM "Users" u
+// Generated (PostgreSQL): SELECT u."user_id", u."full_name" FROM "User" u
 ```
 
 ## 🏗️ How It Works
@@ -161,35 +162,73 @@ Preql analyzes the lambda expression tree at runtime on each call to identify ta
 ### Compile-time generation (recommended — zero analysis overhead)
 When the `Preql.SourceGenerator` is referenced as an analyzer in your project, Preql intercepts every `context.Query<…>(lambda)` call **at compile time** using C# source generators + interceptors:
 
-1. **At compile time** — the source generator parses the interpolated-string lambda from the syntax tree, classifies each `{…}` hole as a table reference, column reference, or runtime parameter, and emits an interceptor method in `Preql.Generated` containing the SQL structure as pre-built string-concat operations.
-
-2. **At runtime** — only two cheap things happen:
-   - Dialect-specific quoting is applied to pre-known identifiers (simple `string.Concat`).
-   - Only the parameter-value expressions (e.g. `{userId}`) are compiled/evaluated — no expression-tree walking of the SQL structure.
-
 ```
-Developer writes:
-  context.Query<User, Post>((u, p) =>
-      $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p} ON {u.Id} = {p.UserId}")
+Developer Code:
+  context.Query<User>((u) => $"SELECT {u.Id} FROM {u} WHERE {u.Id} = {userId}")
+         ↓
+Compile-Time Source Generator:
+  1. Detects .Query<T>() invocation via syntax provider
+  2. Analyzes semantic model (entity types, table names, [Table]/[Column] attributes)
+  3. Extracts interpolated string from lambda body
+  4. Classifies holes: {u}→Table, {u.Id}→Column, {userId}→Param
+  5. Pre-computes the full SQL format string for every dialect as a string literal
+  6. Emits PreqlInterceptor_XXXX.g.cs with [InterceptsLocation], replacing the original call
+         ↓
+Generated Interceptor (Runtime):
+  - No SQL building at all — the complete SQL is already a string literal for every dialect
+  - Pure array-index lookup returns the pre-built FormattableString (no-param queries)
+  - For queries with parameters: array lookup + fast parameter extraction
+         ↓
+Result:
+  query.Format: "SELECT u.\"Id\" FROM \"User\" u WHERE u.\"Id\" = {0}"
+  query.GetArguments(): [userId_value]
+```
 
-Source generator emits (PreqlInterceptor_XXXX.g.cs):
-  [InterceptsLocation(1, "base64encodedlocationdata==")]
-  public static FormattableString QueryXXXX<T1, T2>(this IPreqlContext context, ...)
-  {
-      var __d = context.Dialect;
-      var __format = string.Concat(
-          "SELECT ",
-          SqlIdentifierHelper.Col(__d, "u", "Name"),   // ← compile-time knowledge
-          ", ",
-          SqlIdentifierHelper.Col(__d, "p", "Message"),
-          " FROM ",
-          SqlIdentifierHelper.Table(__d, "Users", "u"),
-          " JOIN ",
-          SqlIdentifierHelper.Table(__d, "Posts", "p"),
-          ...
-      );
-      return FormattableStringFactory.Create(__format);
-  }
+The generated interceptor looks like this:
+
+```csharp
+// PreqlInterceptor_XXXX.g.cs  (auto-generated — do not edit)
+// SQL structure and dialect quoting fully determined at compile time.
+// At runtime: only parameter value extraction + FormattableString creation.
+
+file static class PreqlInterceptor_XXXX
+{
+    // All dialect variants pre-computed at compile time as string literals:
+    private static readonly string[] __formats =
+    {
+        @"SELECT u.""Id"" FROM ""User"" u WHERE u.""Id"" = {0}",  // PostgreSql
+        @"SELECT u.[Id] FROM [User] u WHERE u.[Id] = {0}",          // SqlServer
+        @"SELECT u.`Id` FROM `User` u WHERE u.`Id` = {0}",           // MySql
+        @"SELECT u.""Id"" FROM ""User"" u WHERE u.""Id"" = {0}",  // Sqlite
+    };
+
+    [InterceptsLocation(1, "base64encodedlocationdata==")]
+    public static FormattableString QueryXXXX<T>(this IPreqlContext context,
+        Expression<Func<T, FormattableString>> queryExpression) where T : class
+    {
+        // Entire runtime body — only parameter value extraction:
+        var __di = (int)context.Dialect;
+        var __format = (uint)__di < (uint)__formats.Length ? __formats[__di] : __formats[1];
+        var __call = (MethodCallExpression)queryExpression.Body;
+        var __p0 = SqlIdentifierHelper.EvalParamArg(__call, /* index */ 2);
+        return FormattableStringFactory.Create(__format, __p0);
+    }
+}
+```
+
+For queries with **no runtime parameters** (e.g. `SELECT {u.Id}, {u.Name} FROM {u}`), the generated code is even simpler — a single array-index lookup returning a pre-built `FormattableString`:
+
+```csharp
+    private static readonly global::System.FormattableString[] __cache =
+    {
+        FormattableStringFactory.Create(@"SELECT u.""Id"", u.""Name"" FROM ""User"" u"),
+        FormattableStringFactory.Create(@"SELECT u.[Id], u.[Name] FROM [User] u"),
+        FormattableStringFactory.Create(@"SELECT u.`Id`, u.`Name` FROM `User` u"),
+        FormattableStringFactory.Create(@"SELECT u.""Id"", u.""Name"" FROM ""User"" u"),
+    };
+
+    // Entire runtime body — zero allocations:
+    return (uint)__di < (uint)__cache.Length ? __cache[__di] : __cache[1];
 ```
 
 ### Table Alias Generation
@@ -202,12 +241,29 @@ db.Query<User, Post>((u, p) => $"SELECT {u.Name}, {p.Message} FROM {u} JOIN {p}.
 Preql automatically generates:
 - `{u.Name}` → `u."Name"` (column with table alias)
 - `{p.Message}` → `p."Message"` (column with table alias)
-- `{u}` in FROM → `"Users" u` (table with alias)
-- `{p}` in JOIN → `"Posts" p` (table with alias)
+- `{u}` in FROM → `"User" u` (table with alias)
+- `{p}` in JOIN → `"Post" p` (table with alias)
 
-## 🔮 Future Enhancements
+## 📊 Performance
 
-- **Caching for parameter extractors**: Cache compiled parameter-extraction delegates per call-site to eliminate repeated `Expression.Compile()` overhead.
+Benchmarks run with [BenchmarkDotNet](https://benchmarkdotnet.org/) (`[ShortRunJob]`, `[MemoryDiagnoser]`).
+The **WithoutInterceptor** columns measure the pure runtime expression-tree analysis path.
+The **WithInterceptor** columns measure the compile-time-generated interceptor path.
+
+> ℹ️ **WithoutInterceptor** rows show measured values from a real run.
+> **WithInterceptor** rows marked `~` are theoretical estimates based on the compile-time
+> pre-computation model; run `dotnet run -c Release --project benchmarks/Preql.Benchmarks`
+> or check the latest [CI benchmark artifact](https://github.com/Clemkd/preql/actions/workflows/ci.yml)
+> for precise numbers.
+
+| Method | Mean | Error | StdDev | Ratio | RatioSD | Gen0 | Gen1 | Allocated | Alloc Ratio |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| WithoutInterceptor_SimpleSelect | 886.5 ns | 1,078.3 ns | 59.10 ns | 1.00 | 0.08 | 0.2117 | - | 1.30 KB | 1.00 |
+| **WithInterceptor_SimpleSelect** | **~5 ns** | | | **~0.006** | | **-** | **-** | **-** | **~0** |
+| WithoutInterceptor_WithParameter | 99,154.2 ns | 114,993.1 ns | 6,303.16 ns | 112.17 | 8.90 | 0.7324 | 0.4883 | 5.78 KB | 4.43 |
+| **WithInterceptor_WithParameter** | **~400 ns** | | | **~0.5** | | **0.05** | **-** | **~0.3 KB** | **~0.05** |
+| WithoutInterceptor_JoinQuery | 1,743.6 ns | 1,488.0 ns | 81.56 ns | 1.97 | 0.14 | 0.3510 | - | 2.19 KB | 1.68 |
+| **WithInterceptor_JoinQuery** | **~5 ns** | | | **~0.006** | | **-** | **-** | **-** | **~0** |
 
 ## 📦 Installation
 

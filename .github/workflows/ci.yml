@@ -40,3 +40,33 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./coverage
           fail_ci_if_error: false
+
+  benchmark:
+    runs-on: ubuntu-latest
+    # Only run benchmarks on pushes to main (not on every PR to save CI minutes).
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run benchmarks
+        run: >
+          dotnet run
+          --project benchmarks/Preql.Benchmarks
+          --configuration Release
+          -- --exporters json --artifacts ./benchmark-results
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: benchmark-results/
+          retention-days: 90
