@@ -3,11 +3,11 @@ using System.Linq.Expressions;
 namespace Preql;
 
 /// <summary>
-/// Lightweight helpers used by source-generated interceptors.
+/// Lightweight helpers used by source-generated interceptors and the runtime fallback.
 /// <list type="bullet">
 ///   <item><see cref="Col"/> / <see cref="Table"/> apply dialect-specific quoting to
-///   pre-known identifiers (SQL structure is determined at compile-time; only quoting
-///   is applied at runtime).</item>
+///   identifiers.  They are used by the runtime expression-tree analysis path;
+///   the generated interceptors now embed fully pre-computed SQL literals instead.</item>
 ///   <item><see cref="EvalParamArg"/> extracts a single runtime parameter value from
 ///   the interpolated-string expression tree without full analysis.</item>
 /// </list>
@@ -33,17 +33,13 @@ public static class SqlIdentifierHelper
     }
 
     /// <summary>
-    /// Compiles and evaluates the argument at <paramref name="index"/> inside the
+    /// Evaluates the argument at <paramref name="index"/> inside the
     /// <c>FormattableStringFactory.Create</c> call captured in <paramref name="callExpr"/>.
     /// This handles both the <c>new object[] { … }</c> and the individual-argument forms
     /// that the C# compiler may emit for interpolated strings.
+    /// Uses fast paths for constants and captured variables (field/property access on a
+    /// closure constant) to avoid <c>Expression.Lambda.Compile()</c> in the common cases.
     /// </summary>
-    /// <remarks>
-    /// Each call compiles a small expression-tree lambda to extract the value from the
-    /// current closure. For high-frequency query call sites, consider caching the compiled
-    /// delegate (e.g. via a static field in the generated interceptor class).  The source
-    /// generator will address this in a future enhancement.
-    /// </remarks>
     public static object? EvalParamArg(MethodCallExpression callExpr, int index)
     {
         Expression argExpr = callExpr.Arguments.Count == 2 && callExpr.Arguments[1] is NewArrayExpression arr
@@ -54,6 +50,21 @@ public static class SqlIdentifierHelper
         while (argExpr is UnaryExpression { NodeType: ExpressionType.Convert } unary)
             argExpr = unary.Operand;
 
+        // Fast path: compile-time constant
+        if (argExpr is ConstantExpression ce)
+            return ce.Value;
+
+        // Fast path: captured variable or field on a closure constant — the most common case
+        // for parameters captured from the outer scope (avoids Expression.Lambda.Compile()).
+        if (argExpr is MemberExpression me && me.Expression is ConstantExpression holder)
+        {
+            if (me.Member is System.Reflection.FieldInfo fi)
+                return fi.GetValue(holder.Value);
+            if (me.Member is System.Reflection.PropertyInfo pi)
+                return pi.GetValue(holder.Value);
+        }
+
+        // Fallback: compile expression-tree lambda (handles complex nested closures etc.)
         return Expression.Lambda<Func<object?>>(
             Expression.Convert(argExpr, typeof(object))).Compile()();
     }

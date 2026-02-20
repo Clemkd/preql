@@ -235,6 +235,19 @@ internal static class QueryExpressionAnalyzer
     /// </summary>
     private static object? EvaluateExpression(Expression expr)
     {
+        // Fast path: compile-time constant
+        if (expr is ConstantExpression ce)
+            return ce.Value;
+
+        // Fast path: captured variable or field on a closure constant (avoids Lambda.Compile()).
+        if (expr is MemberExpression me && me.Expression is ConstantExpression holder)
+        {
+            if (me.Member is System.Reflection.FieldInfo fi)
+                return fi.GetValue(holder.Value);
+            if (me.Member is System.Reflection.PropertyInfo pi)
+                return pi.GetValue(holder.Value);
+        }
+
         try
         {
             var lambda = Expression.Lambda<Func<object?>>(Expression.Convert(expr, typeof(object)));
