@@ -246,24 +246,22 @@ Preql automatically generates:
 
 ## 📊 Performance
 
-Benchmarks run with [BenchmarkDotNet](https://benchmarkdotnet.org/) (`[ShortRunJob]`, `[MemoryDiagnoser]`).
-The **WithoutInterceptor** columns measure the pure runtime expression-tree analysis path.
-The **WithInterceptor** columns measure the compile-time-generated interceptor path.
+Benchmarks compare two paths:
 
-> ℹ️ **WithoutInterceptor** rows show measured values from a real run.
-> **WithInterceptor** rows marked `~` are theoretical estimates based on the compile-time
-> pre-computation model; run `dotnet run -c Release --project benchmarks/Preql.Benchmarks`
-> or check the latest [CI benchmark artifact](https://github.com/Clemkd/preql/actions/workflows/ci.yml)
-> for precise numbers.
+- **WithoutInterceptor** — pure runtime expression-tree analysis on every call
+- **WithInterceptor** — compile-time-generated interceptor (array-index lookup ± parameter extraction)
 
-| Method | Mean | Error | StdDev | Ratio | RatioSD | Gen0 | Gen1 | Allocated | Alloc Ratio |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| WithoutInterceptor_SimpleSelect | 886.5 ns | 1,078.3 ns | 59.10 ns | 1.00 | 0.08 | 0.2117 | - | 1.30 KB | 1.00 |
-| **WithInterceptor_SimpleSelect** | **~5 ns** | | | **~0.006** | | **-** | **-** | **-** | **~0** |
-| WithoutInterceptor_WithParameter | 99,154.2 ns | 114,993.1 ns | 6,303.16 ns | 112.17 | 8.90 | 0.7324 | 0.4883 | 5.78 KB | 4.43 |
-| **WithInterceptor_WithParameter** | **~400 ns** | | | **~0.5** | | **0.05** | **-** | **~0.3 KB** | **~0.05** |
-| WithoutInterceptor_JoinQuery | 1,743.6 ns | 1,488.0 ns | 81.56 ns | 1.97 | 0.14 | 0.3510 | - | 2.19 KB | 1.68 |
-| **WithInterceptor_JoinQuery** | **~5 ns** | | | **~0.006** | | **-** | **-** | **-** | **~0** |
+Results are produced by [BenchmarkDotNet](https://benchmarkdotnet.org/) (`[ShortRunJob]`, `[MemoryDiagnoser]`)
+and saved as a JSON artifact on every push to `main`.
+
+👉 **[View the latest benchmark results](https://github.com/Clemkd/preql/actions/workflows/ci.yml)**
+(open the most recent successful run on `main` and download the `benchmark-results` artifact)
+
+To run the benchmarks locally:
+
+```bash
+dotnet run -c Release --project benchmarks/Preql.Benchmarks
+```
 
 ## 📦 Installation
 
