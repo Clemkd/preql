@@ -215,6 +215,9 @@ namespace Preql.SourceGenerator
 
         // ── Code generation ───────────────────────────────────────────────────────
 
+        // Number of values in the Preql.SqlDialect enum; update this if new dialects are added.
+        private const int SqlDialectCount = 4;
+
         private static string GenerateInterceptor(QueryInvocationInfo info)
         {
             var analysis = AnalyzeInterpolatedString(info);
@@ -235,6 +238,14 @@ namespace Preql.SourceGenerator
             sb.AppendLine($"file static class PreqlInterceptor_{info.UniqueId}");
             sb.AppendLine("{");
 
+            // ── Per-dialect static cache ──────────────────────────────────────────
+            // One slot per SqlDialect value; out-of-range values bypass the cache.
+            if (hasParams)
+                sb.AppendLine($"    private static readonly string?[] __formats = new string?[{SqlDialectCount}];");
+            else
+                sb.AppendLine($"    private static readonly global::System.FormattableString?[] __cache = new global::System.FormattableString?[{SqlDialectCount}];");
+            sb.AppendLine();
+
             // ── [InterceptsLocation] attribute ───────────────────────────────────
             // Use the stable InterceptableLocation form: (int version, string data)
             sb.AppendLine($"    [InterceptsLocation({info.InterceptorVersion}, \"{EscapeString(info.InterceptorData)}\")]");
@@ -253,20 +264,50 @@ namespace Preql.SourceGenerator
             sb.AppendLine($"        {constraints}");
             sb.AppendLine("    {");
 
-            // ── Format string construction ────────────────────────────────────────
-            sb.AppendLine("        var __d = context.Dialect;");
-            sb.AppendLine("        var __format = string.Concat(");
             var formatLines = BuildFormatConcatLines(analysis.Parts);
-            for (int i = 0; i < formatLines.Count; i++)
-            {
-                var comma = i < formatLines.Count - 1 ? "," : "";
-                sb.AppendLine($"            {formatLines[i]}{comma}");
-            }
-            sb.AppendLine("        );");
 
-            // ── Parameter extraction ──────────────────────────────────────────────
-            if (hasParams)
+            if (!hasParams)
             {
+                // ── No runtime parameters: cache entire FormattableString per dialect ──
+                sb.AppendLine("        var __di = (int)context.Dialect;");
+                sb.AppendLine("        var __inRange = (uint)__di < (uint)__cache.Length;");
+                sb.AppendLine("        if (__inRange)");
+                sb.AppendLine("        {");
+                sb.AppendLine("            var __cached = __cache[__di];");
+                sb.AppendLine("            if (__cached != null) return __cached;");
+                sb.AppendLine("        }");
+                sb.AppendLine("        var __d = context.Dialect;");
+                sb.AppendLine("        var __format = string.Concat(");
+                for (int i = 0; i < formatLines.Count; i++)
+                {
+                    var comma = i < formatLines.Count - 1 ? "," : "";
+                    sb.AppendLine($"            {formatLines[i]}{comma}");
+                }
+                sb.AppendLine("        );");
+                sb.AppendLine("        var __result = FormattableStringFactory.Create(__format);");
+                sb.AppendLine("        if (__inRange) __cache[__di] = __result;");
+                sb.AppendLine("        return __result;");
+            }
+            else
+            {
+                // ── Runtime parameters: cache format string per dialect ───────────
+                sb.AppendLine("        var __d = context.Dialect;");
+                sb.AppendLine("        var __di = (int)__d;");
+                sb.AppendLine("        var __inRange = (uint)__di < (uint)__formats.Length;");
+                sb.AppendLine("        var __format = __inRange ? __formats[__di] : null;");
+                sb.AppendLine("        if (__format == null)");
+                sb.AppendLine("        {");
+                sb.AppendLine("            __format = string.Concat(");
+                for (int i = 0; i < formatLines.Count; i++)
+                {
+                    var comma = i < formatLines.Count - 1 ? "," : "";
+                    sb.AppendLine($"                {formatLines[i]}{comma}");
+                }
+                sb.AppendLine("            );");
+                sb.AppendLine("            if (__inRange) __formats[__di] = __format;");
+                sb.AppendLine("        }");
+
+                // ── Parameter extraction ──────────────────────────────────────────
                 sb.AppendLine("        var __call = (MethodCallExpression)queryExpression.Body;");
                 for (int i = 0; i < analysis.RuntimeArgIndices.Count; i++)
                 {
@@ -276,10 +317,6 @@ namespace Preql.SourceGenerator
                 var paramArray = string.Join(", ", Enumerable.Range(0, analysis.RuntimeArgIndices.Count)
                                     .Select(i => $"__p{i}"));
                 sb.AppendLine($"        return FormattableStringFactory.Create(__format, {paramArray});");
-            }
-            else
-            {
-                sb.AppendLine("        return FormattableStringFactory.Create(__format);");
             }
 
             sb.AppendLine("    }");
