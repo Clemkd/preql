@@ -252,10 +252,10 @@ Benchmarks compare two paths:
 - **WithInterceptor** — compile-time-generated interceptor (array-index lookup ± parameter extraction)
 
 Results are produced by [BenchmarkDotNet](https://benchmarkdotnet.org/) (`[ShortRunJob]`, `[MemoryDiagnoser]`)
-and saved as a JSON artifact on every push to `main`.
+and saved as a Markdown report on every push to `main`.
 
 👉 **[View the latest benchmark results](https://github.com/Clemkd/preql/actions/workflows/ci.yml)**
-(open the most recent successful run on `main` and download the `benchmark-results` artifact)
+(open the most recent successful run on `main` and download the `benchmark-results` artifact — it contains a `.md` report you can read directly)
 
 To run the benchmarks locally:
 
