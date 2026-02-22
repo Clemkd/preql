@@ -186,6 +186,55 @@ public class SingleTableQueryTests
         Assert.Equal(7, args[0]);
     }
 
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_LowercaseKeyword_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Bob";
+        int userId = 5;
+
+        var query = preql.Query<User>((u) =>
+            $"update {u} set {u.Name} = {newName} where {u.Id} = {userId}");
+
+        // Lowercase "update" keyword must still suppress aliases
+        Assert.Equal("update \"User\" set \"Name\" = {0} where \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Bob", args[0]);
+        Assert.Equal(5, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_MixedCaseKeyword_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Carol";
+        int userId = 3;
+
+        var query = preql.Query<User>((u) =>
+            $"Update {u} Set {u.Name} = {newName} Where {u.Id} = {userId}");
+
+        // Mixed-case "Update" keyword must still suppress aliases
+        Assert.Equal("Update \"User\" Set \"Name\" = {0} Where \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Carol", args[0]);
+        Assert.Equal(3, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Select_WithUpdateInBody_KeepsAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Id} FROM {u}");
+
+        // A SELECT query (even if it happened to contain the word UPDATE elsewhere)
+        // must not have its aliases suppressed
+        Assert.Equal("SELECT u.\"Id\" FROM \"User\" u", query.Format);
+    }
+
     // --- Non-SQLite dialects: UPDATE/DELETE should keep aliases ---
 
     [Fact]
