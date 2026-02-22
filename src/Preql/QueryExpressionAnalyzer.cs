@@ -277,8 +277,23 @@ internal static class QueryExpressionAnalyzer
     private static bool IsUpdateOrDelete(string format)
     {
         var trimmed = format.AsSpan().TrimStart();
-        return trimmed.StartsWith("UPDATE", StringComparison.OrdinalIgnoreCase)
-            || trimmed.StartsWith("DELETE", StringComparison.OrdinalIgnoreCase);
+
+        const string update = "UPDATE";
+        const string delete = "DELETE";
+
+        if (trimmed.StartsWith(update, StringComparison.OrdinalIgnoreCase))
+        {
+            var len = update.Length;
+            return trimmed.Length == len || char.IsWhiteSpace(trimmed[len]);
+        }
+
+        if (trimmed.StartsWith(delete, StringComparison.OrdinalIgnoreCase))
+        {
+            var len = delete.Length;
+            return trimmed.Length == len || char.IsWhiteSpace(trimmed[len]);
+        }
+
+        return false;
     }
 
     /// <summary>Strips <see cref="ExpressionType.Convert"/> wrappers used to box value types.</summary>
