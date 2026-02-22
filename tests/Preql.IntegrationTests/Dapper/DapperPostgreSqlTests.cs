@@ -108,6 +108,8 @@ public sealed class DapperPostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Insert_SingleRow_ProductIsStoredInDatabase()
     {
+        await SeedDataAsync(); // ensure a clean, known state before mutating
+
         string name = "Headphones";
         double price = 149.99;
         int stock = 30;
@@ -131,6 +133,8 @@ public sealed class DapperPostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Update_SetPrice_UpdatesExistingRow()
     {
+        await SeedDataAsync(); // ensure a clean, known state before mutating
+
         double newPrice = 799.99;
         int productId = 1;
 
@@ -152,6 +156,8 @@ public sealed class DapperPostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Delete_ByPrimaryKey_RemovesRow()
     {
+        await SeedDataAsync(); // ensure a clean, known state before mutating
+
         int productId = 5;
 
         var query = _preql.Query<Product>((p) =>

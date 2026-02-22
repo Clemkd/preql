@@ -104,6 +104,8 @@ public sealed class EFCorePostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Insert_SingleRow_ProductIsStoredInDatabase()
     {
+        await ReseedAsync(); // ensure a clean, known state before mutating
+
         string name = "Headphones";
         double price = 149.99;
         int stock = 30;
@@ -123,6 +125,8 @@ public sealed class EFCorePostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Update_SetPrice_UpdatesExistingRow()
     {
+        await ReseedAsync(); // ensure a clean, known state before mutating
+
         double newPrice = 799.99;
         int productId = 1;
 
@@ -146,6 +150,8 @@ public sealed class EFCorePostgreSqlTests : IAsyncLifetime
     [PostgresFact]
     public async Task Delete_ByPrimaryKey_RemovesRow()
     {
+        await ReseedAsync(); // ensure a clean, known state before mutating
+
         int productId = 5;
 
         var query = _preql.Query<Product>((p) =>
@@ -155,4 +161,20 @@ public sealed class EFCorePostgreSqlTests : IAsyncLifetime
         var affected = await db.Database.ExecuteSqlRawAsync(query.Format, query.GetArguments()!);
         Assert.Equal(1, affected);
     }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Truncates all product and category data then re-inserts the canonical seed rows.
+    /// Called at the start of every mutating test to guarantee a deterministic starting state,
+    /// regardless of the order in which tests execute.
+    /// </summary>
+    private async Task ReseedAsync()
+    {
+        await using var db = new TestDbContext(_options!);
+        await db.Database.ExecuteSqlRawAsync(
+            "TRUNCATE \"Product\", product_category RESTART IDENTITY CASCADE");
+        await SeedDataAsync(db);
+    }
 }
+

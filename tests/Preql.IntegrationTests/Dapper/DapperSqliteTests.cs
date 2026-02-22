@@ -52,6 +52,17 @@ public sealed class DapperSqliteTests : IDisposable
                 (5, 'Clean Code',    34.99, 60, 2);");
     }
 
+    /// <summary>
+    /// Deletes all rows from the Product and product_category tables, then re-inserts the
+    /// canonical seed rows. Called at the start of every mutating test to guarantee a
+    /// deterministic starting state regardless of test execution order.
+    /// </summary>
+    private void Reseed()
+    {
+        _connection.Execute("DELETE FROM Product; DELETE FROM product_category;");
+        SeedData();
+    }
+
     // ── SELECT – single table ─────────────────────────────────────────────────
 
     [Fact]
@@ -187,6 +198,8 @@ public sealed class DapperSqliteTests : IDisposable
     [Fact]
     public async Task Insert_SingleRow_ProductIsStoredInDatabase()
     {
+        Reseed(); // ensure a clean, known state before mutating
+
         string name = "Headphones";
         double price = 149.99;
         int stock = 30;
@@ -211,6 +224,8 @@ public sealed class DapperSqliteTests : IDisposable
     [Fact]
     public async Task Update_SetPrice_UpdatesExistingRow()
     {
+        Reseed(); // ensure a clean, known state before mutating
+
         double newPrice = 799.99;
         int productId = 1;
 
@@ -232,6 +247,8 @@ public sealed class DapperSqliteTests : IDisposable
     [Fact]
     public async Task Update_MultipleColumns_UpdatesCorrectly()
     {
+        Reseed(); // ensure a clean, known state before mutating
+
         double newPrice = 249.99;
         int newStock = 5;
         int productId = 3;
@@ -253,6 +270,8 @@ public sealed class DapperSqliteTests : IDisposable
     [Fact]
     public async Task Delete_ByPrimaryKey_RemovesRow()
     {
+        Reseed(); // ensure a clean, known state before mutating
+
         int productId = 5;
 
         // SQLite does not support table aliases in DELETE statements.
@@ -272,6 +291,8 @@ public sealed class DapperSqliteTests : IDisposable
     [Fact]
     public async Task Delete_WithMultipleConditions_RemovesMatchingRows()
     {
+        Reseed(); // ensure a clean, known state before mutating
+
         int categoryId = 2;
         double maxPrice = 40.0;
 
