@@ -116,6 +116,10 @@ internal static class QueryExpressionAnalyzer
             ? (IReadOnlyList<Expression>)arr.Expressions
             : call.Arguments.Skip(1).ToList();
 
+        // SQLite does not support table aliases in UPDATE/DELETE statements.
+        // Detect such statements and suppress aliases for SQLite.
+        bool suppressAlias = dialect == SqlDialect.Sqlite && IsUpdateOrDelete(format);
+
         var formatBuilder = new StringBuilder();
         var parameters = new List<object?>();
         int paramIndex = 0;
@@ -152,7 +156,7 @@ internal static class QueryExpressionAnalyzer
             if (int.TryParse(indexSpan, out int argIdx) && argIdx < argExprs.Count)
             {
                 var argExpr = UnwrapConvert(argExprs[argIdx]);
-                ProcessArgument(argExpr, paramMap, dialect, formatBuilder, parameters, ref paramIndex);
+                ProcessArgument(argExpr, paramMap, dialect, formatBuilder, parameters, ref paramIndex, suppressAlias);
             }
 
             i = endBrace;
@@ -171,12 +175,13 @@ internal static class QueryExpressionAnalyzer
         SqlDialect dialect,
         StringBuilder formatBuilder,
         List<object?> parameters,
-        ref int paramIndex)
+        ref int paramIndex,
+        bool suppressAlias = false)
     {
         // Case 1: Direct lambda parameter → table reference  e.g. {u} → "Users" u
         if (argExpr is ParameterExpression paramExpr && paramMap.TryGetValue(paramExpr, out var tableInfo))
         {
-            var tableRef = FormatTableRef(tableInfo.TableName, tableInfo.Alias, dialect);
+            var tableRef = FormatTableRef(tableInfo.TableName, tableInfo.Alias, dialect, suppressAlias);
             AppendEscapedForInterpolation(formatBuilder, tableRef);
             return;
         }
@@ -186,7 +191,7 @@ internal static class QueryExpressionAnalyzer
             memberExpr.Expression is ParameterExpression memberParam &&
             paramMap.TryGetValue(memberParam, out var colTableInfo))
         {
-            var colRef = FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect);
+            var colRef = FormatColumnRef(GetColumnName(memberExpr.Member), colTableInfo.Alias, dialect, suppressAlias);
             AppendEscapedForInterpolation(formatBuilder, colRef);
             return;
         }
@@ -268,6 +273,29 @@ internal static class QueryExpressionAnalyzer
                && call.Method.Name == "Create";
     }
 
+    /// <summary>Returns true if the format string represents an UPDATE or DELETE statement.</summary>
+    private static bool IsUpdateOrDelete(string format)
+    {
+        var trimmed = format.AsSpan().TrimStart();
+
+        const string update = "UPDATE";
+        const string delete = "DELETE";
+
+        if (trimmed.StartsWith(update, StringComparison.OrdinalIgnoreCase))
+        {
+            var len = update.Length;
+            return trimmed.Length == len || char.IsWhiteSpace(trimmed[len]);
+        }
+
+        if (trimmed.StartsWith(delete, StringComparison.OrdinalIgnoreCase))
+        {
+            var len = delete.Length;
+            return trimmed.Length == len || char.IsWhiteSpace(trimmed[len]);
+        }
+
+        return false;
+    }
+
     /// <summary>Strips <see cref="ExpressionType.Convert"/> wrappers used to box value types.</summary>
     private static Expression UnwrapConvert(Expression expr)
     {
@@ -284,16 +312,16 @@ internal static class QueryExpressionAnalyzer
         return attr?.Name ?? type.Name;
     }
 
-    private static string FormatTableRef(string tableName, string alias, SqlDialect dialect)
+    private static string FormatTableRef(string tableName, string alias, SqlDialect dialect, bool suppressAlias = false)
     {
         var quoted = FormatIdentifier(tableName, dialect);
-        return string.IsNullOrEmpty(alias) ? quoted : $"{quoted} {alias}";
+        return (string.IsNullOrEmpty(alias) || suppressAlias) ? quoted : $"{quoted} {alias}";
     }
 
-    private static string FormatColumnRef(string columnName, string alias, SqlDialect dialect)
+    private static string FormatColumnRef(string columnName, string alias, SqlDialect dialect, bool suppressAlias = false)
     {
         var quoted = FormatIdentifier(columnName, dialect);
-        return string.IsNullOrEmpty(alias) ? quoted : $"{alias}.{quoted}";
+        return (string.IsNullOrEmpty(alias) || suppressAlias) ? quoted : $"{alias}.{quoted}";
     }
 
     private static string FormatIdentifier(string identifier, SqlDialect dialect) =>

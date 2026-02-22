@@ -152,6 +152,204 @@ public class SingleTableQueryTests
         Assert.Equal(99, args[0]);
     }
 
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // SQLite does not support table aliases in UPDATE; alias must be suppressed
+        Assert.Equal("UPDATE \"User\" SET \"Name\" = {0} WHERE \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Delete_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // SQLite does not support table aliases in DELETE; alias must be suppressed
+        Assert.Equal("DELETE FROM \"User\" WHERE \"Id\" = {0}", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_LowercaseKeyword_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Bob";
+        int userId = 5;
+
+        var query = preql.Query<User>((u) =>
+            $"update {u} set {u.Name} = {newName} where {u.Id} = {userId}");
+
+        // Lowercase "update" keyword must still suppress aliases
+        Assert.Equal("update \"User\" set \"Name\" = {0} where \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Bob", args[0]);
+        Assert.Equal(5, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_MixedCaseKeyword_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Carol";
+        int userId = 3;
+
+        var query = preql.Query<User>((u) =>
+            $"Update {u} Set {u.Name} = {newName} Where {u.Id} = {userId}");
+
+        // Mixed-case "Update" keyword must still suppress aliases
+        Assert.Equal("Update \"User\" Set \"Name\" = {0} Where \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Carol", args[0]);
+        Assert.Equal(3, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Select_WithUpdateInBody_KeepsAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+
+        var query = preql.Query<User>((u) =>
+            $"SELECT {u.Id} FROM {u}");
+
+        // A SELECT query (even if it happened to contain the word UPDATE elsewhere)
+        // must not have its aliases suppressed
+        Assert.Equal("SELECT u.\"Id\" FROM \"User\" u", query.Format);
+    }
+
+    // --- Non-SQLite dialects: UPDATE/DELETE should keep aliases ---
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // PostgreSQL should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // PostgreSQL should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_SqlServer_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.SqlServer);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // SQL Server should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_SqlServer_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.SqlServer);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // SQL Server should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_MySql_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.MySql);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // MySQL should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_MySql_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.MySql);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // MySQL should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
     // --- Table name: entity name used as-is ---
 
     [Fact]
