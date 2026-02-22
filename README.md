@@ -5,7 +5,19 @@
 
 **Preql** (pronounced *Prequel*) is a C# library that transmutes typed interpolated strings into SQL.
 
-By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, at compile time, parameterized SQL queries with automatic table aliases.
+By analyzing C# expression trees, Preql can intelligently distinguish between table references, column references, and parameter values, generating clean, parameterized SQL queries at compile time with automatic table aliases.
+
+## 🤔 Why Preql?
+
+Preql was born from real frustrations encountered during day-to-day development with EF Core:
+
+- **Developers know SQL — but fight LINQ**: Many developers are comfortable writing SQL directly, yet spend more time wrestling with LINQ and EF Core to *generate* the SQL they already have in mind, rather than simply writing it.
+
+- **LINQ reaches its limits on advanced queries**: LINQ with EF Core works well for simple queries, but as soon as you need more advanced SQL features — `WITH CTE`, `ROW_NUMBER`, window functions, etc. — you quickly hit walls or become tightly coupled to a specific database provider.
+
+- **Database portability is overrated in practice**: While EF Core's abstraction layer theoretically makes it easier to switch database engines, this rarely (if ever) happens during the lifetime of a real project.
+
+- **The goal: write SQL, keep C# safety**: Preql was created to stop wasting time writing LINQ extensions and expression trees to produce SQL that was already clear in the developer's head — and to avoid unpredictable behavior changes between EF Core versions. Preql is **not a replacement for LINQ in EF Core** — it is a complement, designed for complex or advanced SQL queries that are poorly suited to LINQ generation. At the same time, it retains the ability to track C# property renames through the Roslyn analyzer, catching breaking changes at compile time instead of at runtime after a refactoring.
 
 ## ✨ Key Features
 
