@@ -186,6 +186,121 @@ public class SingleTableQueryTests
         Assert.Equal(7, args[0]);
     }
 
+    // --- Non-SQLite dialects: UPDATE/DELETE should keep aliases ---
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // PostgreSQL should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_PostgreSql_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.PostgreSql);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // PostgreSQL should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_SqlServer_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.SqlServer);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // SQL Server should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_SqlServer_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.SqlServer);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // SQL Server should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
+    [Fact]
+    public void Query_SingleType_MySql_Update_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.MySql);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // MySQL should keep the table alias in UPDATE statements
+        Assert.Contains("UPDATE", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_MySql_Delete_WithAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.MySql);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // MySQL should keep the table alias in DELETE statements
+        Assert.Contains("DELETE FROM", query.Format);
+        Assert.Contains("User", query.Format);
+        Assert.Contains(" u ", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
     // --- Table name: entity name used as-is ---
 
     [Fact]
