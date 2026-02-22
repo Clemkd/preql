@@ -152,6 +152,40 @@ public class SingleTableQueryTests
         Assert.Equal(99, args[0]);
     }
 
+    [Fact]
+    public void Query_SingleType_Sqlite_Update_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        string newName = "Alice";
+        int userId = 42;
+
+        var query = preql.Query<User>((u) =>
+            $"UPDATE {u} SET {u.Name} = {newName} WHERE {u.Id} = {userId}");
+
+        // SQLite does not support table aliases in UPDATE; alias must be suppressed
+        Assert.Equal("UPDATE \"User\" SET \"Name\" = {0} WHERE \"Id\" = {1}", query.Format);
+        var args = query.GetArguments();
+        Assert.Equal(2, args.Length);
+        Assert.Equal("Alice", args[0]);
+        Assert.Equal(42, args[1]);
+    }
+
+    [Fact]
+    public void Query_SingleType_Sqlite_Delete_NoAlias()
+    {
+        var preql = new PreqlContext(SqlDialect.Sqlite);
+        int userId = 7;
+
+        var query = preql.Query<User>((u) =>
+            $"DELETE FROM {u} WHERE {u.Id} = {userId}");
+
+        // SQLite does not support table aliases in DELETE; alias must be suppressed
+        Assert.Equal("DELETE FROM \"User\" WHERE \"Id\" = {0}", query.Format);
+        var args = query.GetArguments();
+        Assert.Single(args);
+        Assert.Equal(7, args[0]);
+    }
+
     // --- Table name: entity name used as-is ---
 
     [Fact]
