@@ -12,5 +12,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Preql.Tests/Preql.Tests.csproj" />
+    <Project Path="tests/Preql.IntegrationTests/Preql.IntegrationTests.csproj" />
   </Folder>
 </Solution>
